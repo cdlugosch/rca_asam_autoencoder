@@ -1,0 +1,31 @@
+# Input data and outputs — not tracked
+mdf_files/
+output/
+config/
+.venv/
+
+# Runtime-generated intermediate files
+intermediate/timeseries/
+intermediate/run_metadata.json
+intermediate/channel_info.csv
+*.tar.gz
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db

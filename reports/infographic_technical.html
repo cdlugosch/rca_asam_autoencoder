@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RCA Pipeline — Technical Flow</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #f0f2f7;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    color: #1a1f36;
+    width: 1200px;
+    margin: 0 auto;
+  }
+  code, .mono { font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; }
+
+  /* ── Header ── */
+  .header {
+    background: #1a3a5e;
+    color: #fff;
+    padding: 28px 48px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .header h1 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 4px; }
+  .header p  { font-size: 13px; color: #90b0d8; }
+  .header-right { font-size: 11px; color: #6080a8; text-align: right; line-height: 1.8; font-family: monospace; }
+
+  /* ── Main layout ── */
+  .main { padding: 32px 48px; display: grid; gap: 28px; }
+
+  /* ── Section titles ── */
+  .sec-title {
+    font-size: 10px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: #7a849e;
+    padding-bottom: 10px; border-bottom: 1px solid #d8ddf0;
+    margin-bottom: 16px;
+  }
+
+  /* ── Pipeline flow ── */
+  .pipeline {
+    display: grid;
+    grid-template-columns: 1fr 48px 1fr 48px 1fr 48px 1fr 48px 1fr;
+    align-items: stretch;
+    gap: 0;
+  }
+  .pipe-stage {
+    background: #fff;
+    border: 1.5px solid #d0d8f0;
+    border-radius: 10px;
+    padding: 18px 16px;
+  }
+  .pipe-stage.part-a { border-color: #4a70d8; background: #f4f7ff; }
+  .pipe-stage.part-b { border-color: #2a8a5a; background: #f2fbf6; }
+  .pipe-stage.inter  { border-color: #b87318; background: #fffbf2; }
+  .pipe-stage.output { border-color: #6b7394; background: #f8f9fc; }
+  .pipe-stage.input  { border-color: #7a4aa8; background: #f9f4ff; }
+
+  .pipe-head {
+    font-size: 11px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+  .part-a .pipe-head { color: #2a4fa8; }
+  .part-b .pipe-head { color: #1e7a4a; }
+  .inter  .pipe-head { color: #8a5210; }
+  .output .pipe-head { color: #4a5280; }
+  .input  .pipe-head { color: #5a3a8a; }
+
+  .pipe-name { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  .pipe-file { font-family: monospace; font-size: 11px; color: #5060a0; background: #e8ecfa; padding: 1px 6px; border-radius: 3px; display: inline-block; margin-bottom: 8px; }
+  .pipe-file.amber { color: #7a4a10; background: #faeedd; }
+  .pipe-file.green { color: #1a5a38; background: #daf5e8; }
+  .pipe-file.grey  { color: #3a4060; background: #ebedf5; }
+  .pipe-file.purple{ color: #4a2880; background: #ede8fa; }
+  .pipe-bullets { list-style: none; display: grid; gap: 3px; }
+  .pipe-bullets li { font-size: 11px; color: #5a6280; padding-left: 12px; position: relative; }
+  .pipe-bullets li::before { content: '·'; position: absolute; left: 2px; color: #9ba4bf; }
+
+  .arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 3px;
+    align-self: stretch;
+  }
+  .arrow svg { display: block; }
+  .arrow-label { font-size: 9px; color: #9ba4bf; text-align: center; letter-spacing: .04em; font-family: monospace; }
+
+  /* ── Analytics detail ── */
+  .analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+  }
+  .analytic-box {
+    background: #fff;
+    border: 1px solid #d8ddf0;
+    border-radius: 8px;
+    padding: 14px 12px;
+  }
+  .analytic-num {
+    font-size: 22px; font-weight: 800; color: #1a2a5e;
+    margin-bottom: 4px; line-height: 1;
+  }
+  .analytic-title { font-size: 12px; font-weight: 700; color: #1a2a5e; margin-bottom: 6px; }
+  .analytic-desc  { font-size: 11px; color: #6b7394; line-height: 1.5; }
+  .analytic-out   { margin-top: 8px; font-family: monospace; font-size: 10px;
+                    color: #3a4a80; background: #eef1fa; padding: 3px 6px;
+                    border-radius: 3px; display: inline-block; }
+
+  /* ── Data contract ── */
+  .contract-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .contract-box {
+    background: #fff;
+    border: 1px solid #d8ddf0;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .contract-head {
+    padding: 10px 16px;
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .contract-head.parta { background: #e8edfa; color: #2a4fa8; }
+  .contract-head.partb { background: #e4f5ed; color: #1e7a4a; }
+  .contract-table { width: 100%; border-collapse: collapse; }
+  .contract-table th {
+    font-size: 9px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    color: #9ba4bf; padding: 5px 12px; border-bottom: 1px solid #eef0f7; text-align: left;
+  }
+  .contract-table td {
+    padding: 7px 12px; border-bottom: 1px solid #f0f2f9;
+    font-size: 11px; font-family: monospace;
+  }
+  .contract-table tr:last-child td { border-bottom: none; }
+  .contract-table td:first-child { font-weight: 600; color: #2a3a70; }
+  .contract-table td:last-child  { color: #5a6480; }
+  .tag-parq { background: #faeedd; color: #7a4a10; padding: 1px 6px; border-radius: 3px; font-size: 10px; }
+  .tag-json  { background: #ede8fa; color: #4a2880; padding: 1px 6px; border-radius: 3px; font-size: 10px; }
+  .tag-csv   { background: #e4f5ed; color: #1e5a38; padding: 1px 6px; border-radius: 3px; font-size: 10px; }
+
+  /* ── Key findings table ── */
+  .findings-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+  }
+  .finding-box {
+    background: #fff;
+    border: 1px solid #d8ddf0;
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .finding-box.warn { border-color: #e0b0b0; background: #fff5f5; }
+  .finding-kv { display: grid; gap: 6px; }
+  .finding-row { display: flex; justify-content: space-between; font-size: 12px; }
+  .finding-key { color: #6b7394; }
+  .finding-val { font-weight: 600; font-family: monospace; }
+  .finding-val.red   { color: #c93535; }
+  .finding-val.amber { color: #b87318; }
+  .finding-val.blue  { color: #2a4fa8; }
+  .fb-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #7a849e; margin-bottom: 10px; }
+  .fb-title.red { color: #c93535; }
+
+  /* ── Anomaly detection detail ── */
+  .detect-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .detect-box {
+    background: #fff;
+    border: 1px solid #d8ddf0;
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .detect-title { font-size: 12px; font-weight: 700; margin-bottom: 10px; color: #1a2a5e; }
+  .detect-rule { font-size: 11px; color: #5a6280; line-height: 1.7; }
+  .detect-rule code { background: #eef1fa; padding: 0 4px; border-radius: 3px; color: #2a3a80; }
+
+  /* ── Footer ── */
+  .footer {
+    padding: 14px 48px;
+    border-top: 1px solid #d8ddf0;
+    background: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #9ba4bf;
+  }
+  .footer-logo { font-weight: 700; color: #1a3a5e; }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1px solid #e4e8f4; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>RCA Pipeline — Technical Architecture &amp; Data Flow</h1>
+    <p>ASAM MDF Root Cause Analysis &nbsp;·&nbsp; mdf_io.py (Part A) + rca_analytics.py (Part B) &nbsp;·&nbsp; PipelinePilot branch</p>
+  </div>
+  <div class="header-right">
+    Python 3.13 &nbsp;·&nbsp; asammdf · pandas · numpy · pyarrow<br>
+    3 MDF runs · 5 signals · 100 ms sampling<br>
+    1 800 rows total after alignment
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- ── Section 1: Pipeline Flow ──────────────────────────── -->
+  <div>
+    <div class="sec-title">Pipeline Architecture — Two-Stage Split</div>
+    <div class="pipeline">
+
+      <!-- Input -->
+      <div class="pipe-stage input">
+        <div class="pipe-head">Input</div>
+        <div class="pipe-name">MDF Files</div>
+        <code class="pipe-file purple">mdf_files/</code>
+        <ul class="pipe-bullets">
+          <li>fault_run_01.mf4</li>
+          <li>normal_run_01.mf4</li>
+          <li>normal_run_02.mf4</li>
+          <li>Format: ASAM MDF 4.x</li>
+          <li>5 channels per file</li>
+        </ul>
+      </div>
+
+      <!-- Arrow -->
+      <div class="arrow">
+        <svg width="40" height="20" viewBox="0 0 40 20"><path d="M0 10 H32 M28 4 L38 10 L28 16" stroke="#9ba4bf" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="arrow-label">reads</div>
+      </div>
+
+      <!-- Part A -->
+      <div class="pipe-stage part-a">
+        <div class="pipe-head">Part A — I/O Layer</div>
+        <div class="pipe-name">mdf_io.py</div>
+        <code class="pipe-file">asammdf · MDF()</code>
+        <ul class="pipe-bullets">
+          <li>Open each .mf4 file</li>
+          <li>to_dataframe(time_from_zero=True)</li>
+          <li>Resample → 100 ms grid</li>
+          <li>Clean: drop NaN / const cols</li>
+          <li>Capture start_time per run</li>
+          <li>Purges intermediate/ on start</li>
+        </ul>
+      </div>
+
+      <!-- Arrow -->
+      <div class="arrow">
+        <svg width="40" height="20" viewBox="0 0 40 20"><path d="M0 10 H32 M28 4 L38 10 L28 16" stroke="#b87318" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="arrow-label">writes</div>
+      </div>
+
+      <!-- Intermediate -->
+      <div class="pipe-stage inter">
+        <div class="pipe-head">Handover</div>
+        <div class="pipe-name">intermediate/</div>
+        <code class="pipe-file amber">timeseries/*.parquet</code>
+        <ul class="pipe-bullets">
+          <li>One parquet per run</li>
+          <li>TimedeltaIndex preserved</li>
+          <li>run_metadata.json</li>
+          <li>  → start_time per run_id</li>
+          <li>channel_info.csv</li>
+          <li>  → inspection only</li>
+        </ul>
+      </div>
+
+      <!-- Arrow -->
+      <div class="arrow">
+        <svg width="40" height="20" viewBox="0 0 40 20"><path d="M0 10 H32 M28 4 L38 10 L28 16" stroke="#2a8a5a" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="arrow-label">reads</div>
+      </div>
+
+      <!-- Part B -->
+      <div class="pipe-stage part-b">
+        <div class="pipe-head">Part B — Analytics</div>
+        <div class="pipe-name">rca_analytics.py</div>
+        <code class="pipe-file green">pandas · numpy</code>
+        <ul class="pipe-bullets">
+          <li>Read parquet → concat DataFrame</li>
+          <li>Resolve DTC timestamps</li>
+          <li>Anomaly detection (rule + stat)</li>
+          <li>Normalise scores by signal σ</li>
+          <li>Correlation + lag (FFT)</li>
+          <li>ECU ranking + DTC linking</li>
+          <li>Purges output/ on start</li>
+        </ul>
+      </div>
+
+      <!-- Arrow -->
+      <div class="arrow">
+        <svg width="40" height="20" viewBox="0 0 40 20"><path d="M0 10 H32 M28 4 L38 10 L28 16" stroke="#6b7394" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="arrow-label">writes</div>
+      </div>
+
+      <!-- Output -->
+      <div class="pipe-stage output">
+        <div class="pipe-head">Output</div>
+        <div class="pipe-name">output/ — CSV</div>
+        <code class="pipe-file grey">18 files</code>
+        <ul class="pipe-bullets">
+          <li>anomalies_long.csv</li>
+          <li>ecu_relevance_ranking.csv</li>
+          <li>signal_anomaly_summary.csv</li>
+          <li>dtc_root_cause_candidates.csv</li>
+          <li>top_correlations[_run].csv</li>
+          <li>lag_vs_&lt;ref&gt;[_run].csv</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Section 2: Analytics Steps ───────────────────────── -->
+  <div>
+    <div class="sec-title">Part B — Analytics Steps</div>
+    <div class="analytics-grid">
+
+      <div class="analytic-box">
+        <div class="analytic-num">1</div>
+        <div class="analytic-title">Rule-Based Anomaly Detection</div>
+        <div class="analytic-desc">Per-sensor min/max/slope thresholds from anomaly_rules.csv. Slope computed via <code>groupby(run_id).diff()</code> — no cross-run bleed.</div>
+        <div class="analytic-out">anomalies_long.csv</div>
+      </div>
+
+      <div class="analytic-box">
+        <div class="analytic-num">2</div>
+        <div class="analytic-title">Statistical Anomaly Detection</div>
+        <div class="analytic-desc">Rolling z-score per run via <code>groupby.transform(rolling)</code>. Window resets at run boundaries. Threshold: |z| &gt; 3.0.</div>
+        <div class="analytic-out">anomalies_long.csv</div>
+      </div>
+
+      <div class="analytic-box">
+        <div class="analytic-num">3</div>
+        <div class="analytic-title">Score Normalisation</div>
+        <div class="analytic-desc">Rule scores (physical units) ÷ signal σ → dimensionless. Stat z-scores kept as-is. Enables fair cross-sensor aggregation.</div>
+        <div class="analytic-out">score_normalized col</div>
+      </div>
+
+      <div class="analytic-box">
+        <div class="analytic-num">4</div>
+        <div class="analytic-title">Pearson Correlation + FFT Lag</div>
+        <div class="analytic-desc">Global N×N Pearson matrix. FFT cross-correlation O(N log N) per signal pair vs reference. Max lag ±30 samples (±3 s at 100 ms).</div>
+        <div class="analytic-out">top_correlations.csv · lag_vs_*.csv</div>
+      </div>
+
+      <div class="analytic-box">
+        <div class="analytic-num">5</div>
+        <div class="analytic-title">DTC Linking &amp; ECU Ranking</div>
+        <div class="analytic-desc">For each DTC: find anomalies in [t−2 s, t+2 s] window, rank by score_normalized. Absolute timestamps auto-resolved via MDF start_time.</div>
+        <div class="analytic-out">dtc_root_cause_candidates.csv · ecu_relevance_ranking.csv</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Section 3: Intermediate Data Contract ────────────── -->
+  <div>
+    <div class="sec-title">Intermediate Data Contract — Part A → Part B Handover</div>
+    <div class="contract-grid">
+
+      <div class="contract-box">
+        <div class="contract-head parta">
+          Part A writes &nbsp;·&nbsp; <code>intermediate/timeseries/&lt;run_id&gt;.parquet</code> &nbsp;<span class="tag-parq">parquet</span>
+        </div>
+        <table class="contract-table">
+          <thead><tr><th>Column / Index</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>index</td><td>timedelta64[ns]</td><td>Time from run start, 100 ms grid</td></tr>
+            <tr><td>EngineSpeed</td><td>float64</td><td>Resampled mean, cleaned</td></tr>
+            <tr><td>ThrottlePosition</td><td>float64</td><td>Resampled mean, cleaned</td></tr>
+            <tr><td>BatteryVoltage</td><td>float64</td><td>Resampled mean, cleaned</td></tr>
+            <tr><td>CoolantTemp</td><td>float64</td><td>Resampled mean, cleaned</td></tr>
+            <tr><td>VehicleSpeed</td><td>float64</td><td>Resampled mean, cleaned</td></tr>
+            <tr><td>run_id</td><td>str</td><td>MDF file stem, e.g. fault_run_01</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="contract-box">
+        <div class="contract-head parta">
+          Part A writes &nbsp;·&nbsp; <code>intermediate/run_metadata.json</code> &nbsp;<span class="tag-json">json</span>
+        </div>
+        <table class="contract-table">
+          <thead><tr><th>Key</th><th>Value</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td>start_times</td><td>dict[str, str|null]</td><td>Root key</td></tr>
+            <tr><td>fault_run_01</td><td>"2024-01-15T…"</td><td>MDF absolute start</td></tr>
+            <tr><td>normal_run_01</td><td>"2024-01-15T…"</td><td>MDF absolute start</td></tr>
+            <tr><td>normal_run_02</td><td>"2024-01-15T…"</td><td>MDF absolute start</td></tr>
+          </tbody>
+        </table>
+        <div style="padding:10px 12px; font-size:11px; color:#5a6280;">
+          Used by Part B to resolve DTC absolute timestamps → relative_time_s via nearest MDF run start.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Section 4: Anomaly Detection Detail ──────────────── -->
+  <div>
+    <div class="sec-title">Anomaly Detection — Algorithm Detail</div>
+    <div class="detect-grid">
+
+      <div class="detect-box">
+        <div class="detect-title">Rule-Based Detection — Per-Run Safe Slope</div>
+        <div class="detect-rule">
+          For each sensor rule in <code>anomaly_rules.csv</code>:<br><br>
+          <b>Min/Max:</b> flag if <code>value &lt; min</code> or <code>value &gt; max</code>, score = deviation magnitude<br><br>
+          <b>Slope:</b> <code>df.groupby("run_id")[sensor].diff() / sampling_s</code><br>
+          → first sample of each run = NaN (no cross-run artifact)<br>
+          → flag if |slope| &gt; max_abs_slope<br><br>
+          Output score is in physical units → normalised in Step 3 by signal σ.
+        </div>
+      </div>
+
+      <div class="detect-box">
+        <div class="detect-title">Statistical Detection — Per-Run Rolling Z-Score</div>
+        <div class="detect-rule">
+          For each numeric signal:<br><br>
+          <code>rolling_mean = groupby("run_id").transform(lambda x: x.rolling(W).mean())</code><br>
+          <code>rolling_std  = groupby("run_id").transform(lambda x: x.rolling(W).std())</code><br><br>
+          → rolling window never crosses run boundary<br>
+          → min_periods = max(5, W/2) to avoid early NaNs<br><br>
+          <b>z = (value − μ) / σ</b> &nbsp; flag if |z| &gt; 3.0<br>
+          Score = |z| (already dimensionless — no normalisation needed).
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Section 5: Key Numerical Results ─────────────────── -->
+  <div>
+    <div class="sec-title">Key Analytical Results — fault_run_01</div>
+    <div class="findings-row">
+
+      <div class="finding-box warn">
+        <div class="fb-title red">Anomaly Distribution</div>
+        <div class="finding-kv">
+          <div class="finding-row"><span class="finding-key">VehicleSpeed (TCU)</span><span class="finding-val red">443 events</span></div>
+          <div class="finding-row"><span class="finding-key">CoolantTemp (EMS)</span><span class="finding-val amber">7 events</span></div>
+          <div class="finding-row"><span class="finding-key">BatteryVoltage (BMS)</span><span class="finding-val blue">4 events</span></div>
+          <div class="finding-row"><span class="finding-key">Peak score_normalized</span><span class="finding-val red">12.79 @ t=40.1s</span></div>
+          <div class="finding-row"><span class="finding-key">Anomaly type</span><span class="finding-val">rule (all 3 signals)</span></div>
+        </div>
+      </div>
+
+      <div class="finding-box">
+        <div class="fb-title">Top Signal Correlations (global)</div>
+        <div class="finding-kv">
+          <div class="finding-row"><span class="finding-key">EngineSpeed ↔ VehicleSpeed</span><span class="finding-val red">r = +0.991</span></div>
+          <div class="finding-row"><span class="finding-key">EngineSpeed ↔ ThrottlePos</span><span class="finding-val red">r = +0.987</span></div>
+          <div class="finding-row"><span class="finding-key">ThrottlePos ↔ VehicleSpeed</span><span class="finding-val red">r = +0.979</span></div>
+          <div class="finding-row"><span class="finding-key">BatteryVoltage ↔ CoolantTemp</span><span class="finding-val blue">r = −0.955</span></div>
+          <div class="finding-row"><span class="finding-key">FFT lag (all top pairs)</span><span class="finding-val">0 samples (in-phase)</span></div>
+        </div>
+      </div>
+
+      <div class="finding-box">
+        <div class="fb-title">DTC Window Analysis</div>
+        <div class="finding-kv">
+          <div class="finding-row"><span class="finding-key">P0562 window (30±2 s)</span><span class="finding-val">17 anomalies</span></div>
+          <div class="finding-row"><span class="finding-key">  → top signal</span><span class="finding-val red">VehicleSpeed</span></div>
+          <div class="finding-row"><span class="finding-key">  → top ECU</span><span class="finding-val red">TCU (11.6 pts)</span></div>
+          <div class="finding-row"><span class="finding-key">P0117 window (34±2 s)</span><span class="finding-val">13 anomalies</span></div>
+          <div class="finding-row"><span class="finding-key">  → top signal</span><span class="finding-val red">VehicleSpeed</span></div>
+          <div class="finding-row"><span class="finding-key">  → top ECU</span><span class="finding-val red">TCU (14.4 pts)</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <div class="footer-logo">ASAM MDF · RCA Pipeline · PipelinePilot branch</div>
+  <div>Sources: all files in output/ and intermediate/ &nbsp;·&nbsp; No external deps for analytics — pandas + numpy only</div>
+</div>
+
+</body>
+</html>
