@@ -504,7 +504,14 @@ def main():
     # Purge output dir before every run
     if output_dir.exists():
         shutil.rmtree(output_dir)
-    output_dir.mkdir(parents=True)
+
+    # Create output subdirectory layout
+    signals_dir     = output_dir / "signals"
+    rule_stat_dir   = output_dir / "rule_stat"
+    correlation_dir = output_dir / "correlation"
+    lag_dir         = output_dir / "lag"
+    for d in (signals_dir, rule_stat_dir, correlation_dir, lag_dir):
+        d.mkdir(parents=True)
 
     # 1) Load parquet + run metadata from Part A
     df, mdf_start_times = load_intermediate(intermediate_dir)
@@ -519,12 +526,12 @@ def main():
 
     # 3) Sensor → ECU mapping
     sensor_ecu_df = build_sensor_ecu_table(df.columns.tolist(), sensor_ecu_map)
-    sensor_ecu_df.to_csv(output_dir / "signal_ecu_mapping_resolved.csv", index=False)
+    sensor_ecu_df.to_csv(signals_dir / "signal_ecu_mapping_resolved.csv", index=False)
 
     # Aligned signals (human-readable CSV of what was loaded from parquet)
     aligned = df.copy()
     aligned.insert(0, "time_s", aligned.index.total_seconds())
-    aligned.to_csv(output_dir / "aligned_clean_signals.csv", index=False)
+    aligned.to_csv(signals_dir / "aligned_clean_signals.csv", index=False)
 
     # 4) Anomaly detection — infer sampling from data
     sampling_seconds = df.index.to_series().diff().median().total_seconds()
@@ -533,32 +540,32 @@ def main():
     stat_anom = detect_statistical_anomalies(df, args.rolling_window, args.z_threshold)
     all_anom = pd.concat([rule_anom, stat_anom], ignore_index=True)
     all_anom = normalize_anomaly_scores(all_anom, df)
-    all_anom.to_csv(output_dir / "anomalies_long.csv", index=False)
+    all_anom.to_csv(rule_stat_dir / "anomalies_long.csv", index=False)
 
-    aggregate_signal_anomalies(all_anom).to_csv(output_dir / "signal_anomaly_summary.csv", index=False)
-    aggregate_ecu_relevance(all_anom, sensor_ecu_df).to_csv(output_dir / "ecu_relevance_ranking.csv", index=False)
+    aggregate_signal_anomalies(all_anom).to_csv(rule_stat_dir / "signal_anomaly_summary.csv", index=False)
+    aggregate_ecu_relevance(all_anom, sensor_ecu_df).to_csv(rule_stat_dir / "ecu_relevance_ranking.csv", index=False)
 
     # 5) Correlation — global
     corr = compute_correlation(df)
     corr.index.name = "signal"
-    corr.to_csv(output_dir / "correlation_matrix.csv")
-    flatten_correlation_matrix(corr).to_csv(output_dir / "top_correlations.csv", index=False)
+    corr.to_csv(correlation_dir / "correlation_matrix.csv")
+    flatten_correlation_matrix(corr).to_csv(correlation_dir / "top_correlations.csv", index=False)
 
     # 5b) Correlation — per run
     if args.per_run:
         for run_id, run_df in df.groupby("run_id"):
             run_corr = compute_correlation(run_df)
             run_corr.index.name = "signal"
-            run_corr.to_csv(output_dir / f"correlation_matrix_{run_id}.csv")
+            run_corr.to_csv(correlation_dir / f"correlation_matrix_{run_id}.csv")
             flatten_correlation_matrix(run_corr).to_csv(
-                output_dir / f"top_correlations_{run_id}.csv", index=False)
+                correlation_dir / f"top_correlations_{run_id}.csv", index=False)
             logging.info("Per-run correlation written for %s", run_id)
 
     # 6) Lag analysis — global (FFT-based)
     if args.ref_signal:
         try:
             lag_df = cross_correlation_with_lag(df, args.ref_signal, args.max_lag)
-            lag_df.to_csv(output_dir / f"lag_vs_{args.ref_signal}.csv", index=False)
+            lag_df.to_csv(lag_dir / f"lag_vs_{args.ref_signal}.csv", index=False)
         except Exception as e:
             logging.warning("Lag analysis skipped: %s", e)
 
@@ -566,7 +573,7 @@ def main():
             for run_id, run_df in df.groupby("run_id"):
                 try:
                     cross_correlation_with_lag(run_df, args.ref_signal, args.max_lag).to_csv(
-                        output_dir / f"lag_vs_{args.ref_signal}_{run_id}.csv", index=False)
+                        lag_dir / f"lag_vs_{args.ref_signal}_{run_id}.csv", index=False)
                 except Exception as e:
                     logging.warning("Lag analysis skipped for %s: %s", run_id, e)
 
@@ -574,9 +581,9 @@ def main():
     if not dtc_df.empty:
         extract_dtc_windows(dtc_df, all_anom, sensor_ecu_df,
                             args.dtc_window_before_s, args.dtc_window_after_s
-                            ).to_csv(output_dir / "dtc_root_cause_candidates.csv", index=False)
+                            ).to_csv(rule_stat_dir / "dtc_root_cause_candidates.csv", index=False)
 
-    logging.info("Done. Results written to %s", output_dir)
+    logging.info("Done. Results written under %s/  [signals/ rule_stat/ correlation/ lag/]", output_dir)
 
 
 if __name__ == "__main__":
