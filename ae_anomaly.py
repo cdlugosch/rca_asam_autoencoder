@@ -459,69 +459,60 @@ def extract_ae_dtc_windows(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_method_comparison(
-    rs_summary_path: Path,
+    lv_path: Path,
     ae_summary: pd.DataFrame,
-    rs_long_path: Path,
-    ae_long: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Join rule/stat and AE signal summaries; compute rank changes and
-    the fraction of timesteps both methods agree are anomalous.
+    Combine AE anomaly summary with hard limit-violation counts per signal.
+
+    Columns: signal | ae_rank | ae_anomaly_count | ae_score_normalized | limit_violation_count
     """
-    if not rs_summary_path.exists():
-        logging.warning("rule/stat summary not found — skipping comparison")
-        return pd.DataFrame()
+    ae = ae_summary.rename(columns={
+        "anomaly_count":        "ae_anomaly_count",
+        "score_normalized_sum": "ae_score_normalized",
+    })[["signal", "ae_anomaly_count", "ae_score_normalized"]].copy() \
+        if not ae_summary.empty else \
+        pd.DataFrame(columns=["signal", "ae_anomaly_count", "ae_score_normalized"])
 
-    rs = pd.read_csv(rs_summary_path)[["signal", "anomaly_count", "score_normalized_sum"]]
-    ae = ae_summary[["signal", "anomaly_count", "score_normalized_sum"]].copy() if not ae_summary.empty else \
-         pd.DataFrame(columns=["signal", "anomaly_count", "score_normalized_sum"])
-
-    cmp = rs.merge(ae, on="signal", how="outer", suffixes=("_rs", "_ae")).fillna(0)
-
-    cmp["rank_rs"] = cmp["score_normalized_sum_rs"].rank(ascending=False, method="min").astype(int)
-    cmp["rank_ae"] = cmp["score_normalized_sum_ae"].rank(ascending=False, method="min").astype(int)
-    cmp["rank_change"] = cmp["rank_rs"] - cmp["rank_ae"]   # positive = AE ranks it higher
-
-    # Temporal overlap: timesteps flagged by both methods
-    if rs_long_path.exists():
-        rs_long = pd.read_csv(rs_long_path)
-        rs_flagged = set(zip(rs_long["run_id"], rs_long["time_s"].round(1), rs_long["signal"]))
-        ae_flagged = set(
-            zip(ae_long.loc[ae_long["is_anomaly"], "run_id"],
-                ae_long.loc[ae_long["is_anomaly"], "time_s"].round(1),
-                ae_long.loc[ae_long["is_anomaly"], "signal"])
-        )
-        overlap_rows = []
-        for sig in cmp["signal"]:
-            rs_sig = {(r, t) for r, t, s in rs_flagged if s == sig}
-            ae_sig = {(r, t) for r, t, s in ae_flagged if s == sig}
-            overlap = len(rs_sig & ae_sig)
-            overlap_rows.append(overlap)
-        cmp["overlap_timesteps"] = overlap_rows
+    if lv_path.exists():
+        lv = pd.read_csv(lv_path)
+        lv_counts = lv.groupby("signal").size().reset_index(name="limit_violation_count")
+        cmp = ae.merge(lv_counts, on="signal", how="outer").fillna(0)
     else:
-        cmp["overlap_timesteps"] = np.nan
+        cmp = ae.copy()
+        cmp["limit_violation_count"] = 0
 
-    return cmp.sort_values("rank_ae")
+    cmp["ae_rank"] = cmp["ae_score_normalized"].rank(ascending=False, method="min").astype(int)
+    return cmp.sort_values("ae_rank")[
+        ["signal", "ae_rank", "ae_anomaly_count", "ae_score_normalized", "limit_violation_count"]
+    ]
 
 
 def build_dtc_comparison(
-    rs_dtc_path: Path,
+    lv_dtc_path: Path,
     ae_dtc: pd.DataFrame,
 ) -> pd.DataFrame:
-    if not rs_dtc_path.exists():
-        return pd.DataFrame()
-    rs = pd.read_csv(rs_dtc_path)
-    if ae_dtc.empty:
-        ae = pd.DataFrame(columns=["dtc_code", "top_signal", "top_ecu",
-                                   "top_signal_score", "top_ecu_score", "matched_anomaly_count"])
-    else:
-        ae = ae_dtc.copy()
+    """
+    Compare AE DTC candidates against hard limit-violation DTC windows.
+    Adds ae_matches_dtc_ecu to flag when the AE top ECU agrees with the DTC origin.
+    """
+    ae_cols = ["dtc_code", "top_signal", "top_ecu", "top_signal_score", "matched_anomaly_count"]
+    ae = ae_dtc[ae_cols].copy() if not ae_dtc.empty else pd.DataFrame(columns=ae_cols)
+    ae = ae.rename(columns={c: f"ae_{c}" for c in
+                             ["top_signal", "top_ecu", "top_signal_score", "matched_anomaly_count"]})
 
-    merged = rs[["dtc_code", "dtc_ecu", "description",
-                 "top_signal", "top_ecu", "top_signal_score", "matched_anomaly_count"]].merge(
-        ae[["dtc_code", "top_signal", "top_ecu", "top_signal_score", "matched_anomaly_count"]],
-        on="dtc_code", how="outer", suffixes=("_rs", "_ae"),
-    ).fillna("")
+    if not lv_dtc_path.exists():
+        logging.warning("dtc_limit_violation_windows.csv not found — DTC comparison incomplete")
+        return ae
+
+    lv = pd.read_csv(lv_dtc_path)[
+        ["dtc_code", "dtc_ecu", "description",
+         "violation_count", "signals_in_window", "ecus_in_window"]
+    ]
+    merged = lv.merge(ae, on="dtc_code", how="outer").fillna("")
+    merged["ae_matches_dtc_ecu"] = merged.apply(
+        lambda r: bool(r["ae_top_ecu"]) and r["ae_top_ecu"] == r["dtc_ecu"], axis=1
+    )
     return merged
 
 
@@ -621,16 +612,14 @@ def main():
     # ── Comparison ───────────────────────────────────────────────────────────
     rs_dir = output_dir / "rule_stat"
     method_cmp = build_method_comparison(
-        rs_dir / "signal_anomaly_summary.csv",
+        rs_dir / "limit_violations.csv",
         ae_signal_summary,
-        rs_dir / "anomalies_long.csv",
-        ae_long,
     )
     if not method_cmp.empty:
         method_cmp.to_csv(cmp_dir / "method_comparison.csv", index=False)
 
     dtc_cmp = build_dtc_comparison(
-        rs_dir / "dtc_root_cause_candidates.csv",
+        rs_dir / "dtc_limit_violation_windows.csv",
         ae_dtc,
     )
     if not dtc_cmp.empty:

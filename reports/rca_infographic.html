@@ -283,12 +283,12 @@
   <div class="header">
     <div class="header-left">
       <h1>RCA Pipeline — <span>ASAM MDF</span></h1>
-      <p>Root Cause Analysis · ASAM MDF4 Timeseries · Two-Part Processing Pipeline</p>
+      <p>Root Cause Analysis · ASAM MDF4 Timeseries · Three-Part Pipeline + Autoencoder Anomaly Detection</p>
     </div>
     <div class="header-right">
       <span class="badge badge-blue">3 MDF Runs</span>
       <span class="badge badge-green">5 Signals · 1 800 rows</span>
-      <span class="badge badge-red">454 Anomaly Events</span>
+      <span class="badge badge-red">1 163 AE Anomaly Events</span>
       <span class="badge badge-orange">2 DTC Codes</span>
     </div>
   </div>
@@ -300,17 +300,17 @@
       <div class="card">
         <div class="card-label">MDF Files</div>
         <div class="card-value" style="color:var(--blue)">3</div>
-        <div class="card-sub">1 fault · 2 normal</div>
+        <div class="card-sub">1 fault · 2 normal (training)</div>
       </div>
       <div class="card">
-        <div class="card-label">Total Rows</div>
-        <div class="card-value" style="color:var(--cyan)">1 800</div>
-        <div class="card-sub">600 rows × 3 runs @ 100 ms</div>
+        <div class="card-label">AE Anomaly Events</div>
+        <div class="card-value" style="color:var(--red)">1 163</div>
+        <div class="card-sub">p95 threshold · 5 signals</div>
       </div>
       <div class="card">
-        <div class="card-label">Anomaly Events</div>
-        <div class="card-value" style="color:var(--red)">454</div>
-        <div class="card-sub">446 rule-based · 8 statistical</div>
+        <div class="card-label">Top Suspect Signal</div>
+        <div class="card-value" style="color:var(--blue);font-size:22px;margin-top:6px">BatteryVoltage</div>
+        <div class="card-sub">BMS · AE score 6 190.6</div>
       </div>
       <div class="card">
         <div class="card-label">DTC Codes</div>
@@ -394,12 +394,31 @@
           <div class="pipe-header purple">Part B — rca_analytics.py</div>
           <div class="pipe-body purple-b">
             <div class="pipe-item"><span class="dot purple"></span>Load parquet → concat</div>
-            <div class="pipe-item"><span class="dot purple"></span>Rule-based anomaly detection</div>
-            <div class="pipe-item"><span class="dot purple"></span>Rolling z-score (stat)</div>
-            <div class="pipe-item"><span class="dot purple"></span>Normalise &amp; aggregate scores</div>
+            <div class="pipe-item"><span class="dot orange"></span>Hard-limit violation audit</div>
+            <div class="pipe-item"><span class="dot orange"></span>DTC limit-violation windows</div>
             <div class="pipe-item"><span class="dot blue"></span>Pearson correlation (global + per-run)</div>
             <div class="pipe-item"><span class="dot blue"></span>FFT cross-correlation lag</div>
-            <div class="pipe-item"><span class="dot red"></span>DTC window linking</div>
+          </div>
+        </div>
+
+        <!-- ARROW -->
+        <div class="pipe-arrow">
+          <svg width="28" height="24" viewBox="0 0 28 24" fill="none">
+            <path d="M4 12 H22 M16 6 L22 12 L16 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <!-- PART C -->
+        <div class="pipe-stage">
+          <div class="pipe-header" style="background:rgba(34,211,238,.2);color:var(--cyan);border:1px solid rgba(34,211,238,.4);border-bottom:none">Part C — ae_anomaly.py</div>
+          <div class="pipe-body" style="border:1px solid rgba(34,211,238,.4);border-top:none">
+            <div class="pipe-item"><span class="dot cyan"></span>Auto-detect normal training runs</div>
+            <div class="pipe-item"><span class="dot cyan"></span>Sliding window (W=20) dataset</div>
+            <div class="pipe-item"><span class="dot cyan"></span>Train MLP autoencoder (64·16·64)</div>
+            <div class="pipe-item"><span class="dot cyan"></span>Per-signal reconstruction error</div>
+            <div class="pipe-item"><span class="dot red"></span>p95 threshold anomaly flagging</div>
+            <div class="pipe-item"><span class="dot red"></span>AE DTC window linking</div>
+            <div class="pipe-item"><span class="dot yellow"></span>Method comparison output</div>
           </div>
         </div>
 
@@ -412,16 +431,15 @@
 
         <!-- OUTPUT -->
         <div class="pipe-stage">
-          <div class="pipe-header blue">Output — 17 Files</div>
+          <div class="pipe-header blue">Output — 21 Files</div>
           <div class="pipe-body blue-b">
-            <div class="pipe-item"><span class="dot cyan"></span>aligned_clean_signals.csv</div>
-            <div class="pipe-item"><span class="dot red"></span>anomalies_long.csv</div>
-            <div class="pipe-item"><span class="dot red"></span>signal_anomaly_summary.csv</div>
-            <div class="pipe-item"><span class="dot orange"></span>ecu_relevance_ranking.csv</div>
-            <div class="pipe-item"><span class="dot blue"></span>correlation_matrix*.csv (×4)</div>
-            <div class="pipe-item"><span class="dot blue"></span>top_correlations*.csv (×4)</div>
-            <div class="pipe-item"><span class="dot purple"></span>lag_vs_EngineSpeed*.csv (×4)</div>
-            <div class="pipe-item"><span class="dot red"></span>dtc_root_cause_candidates.csv</div>
+            <div class="pipe-item"><span class="dot cyan"></span>signals/ (2 files)</div>
+            <div class="pipe-item"><span class="dot orange"></span>rule_stat/limit_violations.csv</div>
+            <div class="pipe-item"><span class="dot orange"></span>rule_stat/dtc_limit_violation_windows.csv</div>
+            <div class="pipe-item"><span class="dot blue"></span>correlation/ (8 files)</div>
+            <div class="pipe-item"><span class="dot purple"></span>lag/ (4 files)</div>
+            <div class="pipe-item"><span class="dot red"></span>autoencoder/ (5 files)</div>
+            <div class="pipe-item"><span class="dot yellow"></span>comparison/ (2 files)</div>
           </div>
         </div>
 
@@ -466,82 +484,100 @@
     <div class="grid-2">
 
       <!-- Signal ranking -->
+      <!-- Signal ranking (AE) -->
       <div class="card">
         <div style="font-size:13px;font-weight:700;margin-bottom:16px;color:var(--text)">
-          Signal Anomaly Ranking <span style="color:var(--muted);font-weight:400;font-size:11px">· normalised score</span>
+          AE Signal Anomaly Ranking <span style="color:var(--muted);font-weight:400;font-size:11px">· normalised reconstruction error</span>
         </div>
         <div class="bar-chart">
           <div class="bar-row">
             <div class="bar-label">
-              <span class="name">VehicleSpeed <span class="badge badge-orange" style="font-size:10px;margin-left:4px">TCU</span></span>
-              <span style="color:var(--orange)">439.1 · 443 events</span>
+              <span class="name">BatteryVoltage <span class="badge badge-blue" style="font-size:10px;margin-left:4px">BMS</span></span>
+              <span style="color:var(--blue)">6 190.6 · 230 events</span>
             </div>
             <div class="bar-track">
-              <div class="bar-fill" style="width:100%;background:linear-gradient(90deg,var(--orange),var(--red))"></div>
+              <div class="bar-fill" style="width:100%;background:linear-gradient(90deg,var(--blue),var(--cyan))"></div>
             </div>
           </div>
           <div class="bar-row">
             <div class="bar-label">
-              <span class="name">CoolantTemp <span class="badge badge-blue" style="font-size:10px;margin-left:4px">EMS</span></span>
-              <span style="color:var(--blue)">71.7 · 7 events</span>
+              <span class="name">CoolantTemp <span class="badge badge-orange" style="font-size:10px;margin-left:4px">EMS</span></span>
+              <span style="color:var(--orange)">2 411.9 · 234 events</span>
             </div>
             <div class="bar-track">
-              <div class="bar-fill" style="width:16.3%;background:linear-gradient(90deg,var(--blue),var(--cyan))"></div>
+              <div class="bar-fill" style="width:39%;background:linear-gradient(90deg,var(--orange),var(--yellow))"></div>
             </div>
           </div>
           <div class="bar-row">
             <div class="bar-label">
-              <span class="name">BatteryVoltage <span class="badge badge-purple" style="font-size:10px;margin-left:4px">BMS</span></span>
-              <span style="color:var(--purple)">66.1 · 4 events</span>
+              <span class="name">EngineSpeed <span class="badge badge-green" style="font-size:10px;margin-left:4px">EMS</span></span>
+              <span style="color:var(--green)">1 627.4 · 235 events</span>
             </div>
             <div class="bar-track">
-              <div class="bar-fill" style="width:15.1%;background:linear-gradient(90deg,var(--purple),var(--blue))"></div>
+              <div class="bar-fill" style="width:26.3%;background:linear-gradient(90deg,var(--green),var(--cyan))"></div>
+            </div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-label">
+              <span class="name">VehicleSpeed <span class="badge badge-purple" style="font-size:10px;margin-left:4px">TCU</span></span>
+              <span style="color:var(--purple)">1 374.5 · 231 events</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:22.2%;background:linear-gradient(90deg,var(--purple),var(--blue))"></div>
             </div>
           </div>
         </div>
 
-        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
-          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.07em">Anomaly Type Split</div>
-          <div style="display:flex;gap:12px;align-items:center">
-            <div style="flex:1;background:var(--surface);border-radius:4px;height:10px;overflow:hidden;border:1px solid var(--border)">
-              <div style="width:98.2%;height:100%;background:var(--orange);border-radius:4px"></div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.07em">Limit Violations (safety audit)</div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <div style="display:flex;justify-content:space-between;font-size:11px">
+              <span style="color:var(--dim)">VehicleSpeed</span>
+              <span style="color:var(--orange)">441 — all 3 runs (threshold miscalibrated)</span>
             </div>
-            <span style="font-size:11px;color:var(--dim);white-space:nowrap">446 rule · 8 stat</span>
+            <div style="display:flex;justify-content:space-between;font-size:11px">
+              <span style="color:var(--dim)">CoolantTemp</span>
+              <span style="color:var(--green)">3 — fault run only ✓</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px">
+              <span style="color:var(--dim)">BatteryVoltage</span>
+              <span style="color:var(--green)">2 — fault run only ✓</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- ECU ranking -->
+      <!-- ECU ranking (AE) -->
       <div class="card">
         <div style="font-size:13px;font-weight:700;margin-bottom:16px;color:var(--text)">
-          ECU Relevance Ranking <span style="color:var(--muted);font-weight:400;font-size:11px">· normalised score</span>
+          AE ECU Relevance Ranking <span style="color:var(--muted);font-weight:400;font-size:11px">· normalised score</span>
         </div>
         <div class="bar-chart">
           <div class="bar-row">
             <div class="bar-label">
-              <span class="name">TCU — Transmission Control</span>
-              <span style="color:var(--orange)">439.1 · 443 events</span>
+              <span class="name">BMS — Battery Management</span>
+              <span style="color:var(--blue)">6 190.6 · 230 events</span>
             </div>
             <div class="bar-track">
-              <div class="bar-fill" style="width:100%;background:linear-gradient(90deg,var(--orange),var(--red))"></div>
+              <div class="bar-fill" style="width:100%;background:linear-gradient(90deg,var(--blue),var(--cyan))"></div>
             </div>
           </div>
           <div class="bar-row">
             <div class="bar-label">
               <span class="name">EMS — Engine Management</span>
-              <span style="color:var(--blue)">71.7 · 7 events</span>
+              <span style="color:var(--orange)">4 653.9 · 702 events</span>
             </div>
             <div class="bar-track">
-              <div class="bar-fill" style="width:16.3%;background:linear-gradient(90deg,var(--blue),var(--cyan))"></div>
+              <div class="bar-fill" style="width:75.2%;background:linear-gradient(90deg,var(--orange),var(--yellow))"></div>
             </div>
           </div>
           <div class="bar-row">
             <div class="bar-label">
-              <span class="name">BMS — Battery Management</span>
-              <span style="color:var(--purple)">66.1 · 4 events</span>
+              <span class="name">TCU — Transmission Control</span>
+              <span style="color:var(--purple)">1 374.5 · 231 events</span>
             </div>
             <div class="bar-track">
-              <div class="bar-fill" style="width:15.1%;background:linear-gradient(90deg,var(--purple),var(--blue))"></div>
+              <div class="bar-fill" style="width:22.2%;background:linear-gradient(90deg,var(--purple),var(--blue))"></div>
             </div>
           </div>
         </div>
@@ -550,16 +586,16 @@
           <div style="font-size:11px;color:var(--muted);margin-bottom:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em">ECU → Signal Mapping</div>
           <div style="display:flex;flex-direction:column;gap:5px">
             <div style="display:flex;gap:6px;align-items:center;font-size:11px">
+              <span style="color:var(--blue);font-weight:700;min-width:40px">BMS</span>
+              <span style="color:var(--dim)">BatteryVoltage <span style="color:var(--blue)">★ top suspect</span></span>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;font-size:11px">
               <span style="color:var(--orange);font-weight:700;min-width:40px">EMS</span>
               <span style="color:var(--dim)">EngineSpeed · CoolantTemp · ThrottlePosition</span>
             </div>
             <div style="display:flex;gap:6px;align-items:center;font-size:11px">
-              <span style="color:var(--orange);font-weight:700;min-width:40px">TCU</span>
+              <span style="color:var(--purple);font-weight:700;min-width:40px">TCU</span>
               <span style="color:var(--dim)">VehicleSpeed</span>
-            </div>
-            <div style="display:flex;gap:6px;align-items:center;font-size:11px">
-              <span style="color:var(--orange);font-weight:700;min-width:40px">BMS</span>
-              <span style="color:var(--dim)">BatteryVoltage</span>
             </div>
           </div>
         </div>
@@ -832,40 +868,43 @@
 
   <!-- ════════ DTC CANDIDATES TABLE ════════ -->
   <div class="section">
-    <div class="section-title">DTC Root Cause Candidates</div>
+    <div class="section-title">DTC Root Cause Candidates — Autoencoder</div>
     <div class="card">
       <table>
         <thead>
           <tr>
             <th>DTC Code</th>
             <th>Description</th>
-            <th>Originating ECU</th>
+            <th>Origin ECU</th>
             <th>Time (s)</th>
-            <th>Top Signal in Window</th>
-            <th>Score</th>
-            <th>Top ECU in Window</th>
-            <th>Matched Anomalies</th>
+            <th>AE Top Signal</th>
+            <th>AE Score</th>
+            <th>AE Top ECU</th>
+            <th>ECU Match</th>
+            <th>Limit Viols.</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><span class="badge badge-red">P0562</span></td>
+            <td><span class="badge badge-blue">P0562</span></td>
             <td class="highlight">System Voltage Low</td>
-            <td style="color:var(--purple)">BMS</td>
+            <td style="color:var(--blue)">BMS</td>
             <td style="color:var(--text);font-weight:600">30.0</td>
-            <td style="color:var(--orange)">VehicleSpeed</td>
-            <td style="color:var(--orange);font-weight:700">11.6</td>
-            <td style="color:var(--orange)">TCU</td>
-            <td style="color:var(--dim)">17</td>
+            <td style="color:var(--blue);font-weight:700">BatteryVoltage</td>
+            <td style="color:var(--blue);font-weight:700">224</td>
+            <td style="color:var(--orange)">EMS</td>
+            <td style="color:var(--yellow)">Partial</td>
+            <td style="color:var(--dim)">15</td>
           </tr>
           <tr>
-            <td><span class="badge badge-orange">P0117</span></td>
+            <td><span class="badge badge-green">P0117</span></td>
             <td class="highlight">Coolant Temp Circuit Low</td>
-            <td style="color:var(--blue)">EMS</td>
+            <td style="color:var(--orange)">EMS</td>
             <td style="color:var(--text);font-weight:600">34.0</td>
-            <td style="color:var(--orange)">VehicleSpeed</td>
-            <td style="color:var(--orange);font-weight:700">14.4</td>
-            <td style="color:var(--orange)">TCU</td>
+            <td style="color:var(--blue);font-weight:700">BatteryVoltage</td>
+            <td style="color:var(--blue);font-weight:700">518</td>
+            <td style="color:var(--orange)">EMS</td>
+            <td style="color:var(--green)">✓ EMS</td>
             <td style="color:var(--dim)">13</td>
           </tr>
         </tbody>
@@ -878,27 +917,27 @@
     <div class="section-title">Analysis Insight</div>
     <div style="display:flex;flex-direction:column;gap:12px">
 
+      <div class="insight" style="background:rgba(34,197,94,.06);border-color:rgba(34,197,94,.25)">
+        <div class="insight-icon" style="color:var(--green)">✓</div>
+        <div>
+          <h4 style="color:var(--green)">Autoencoder correctly resolves DTC root causes</h4>
+          <p>P0117 (EMS — Coolant Temp Circuit Low): <strong>AE top ECU = EMS ✓</strong>. P0562 (BMS — System Voltage Low): AE correctly flags <strong>BatteryVoltage as top signal</strong> (physically meaningful), but scores EMS highest in the window due to co-occurring CoolantTemp/EngineSpeed anomalies at t = 28–32 s. The main fault spike (BatteryVoltage error = 569, CoolantTemp error = 123) occurs at <strong>t ≈ 40 s</strong>, 6–10 s after DTC fire. Narrowing the DTC window or adding ECU-ownership weighting would resolve P0562 to BMS correctly.</p>
+        </div>
+      </div>
+
       <div class="insight">
         <div class="insight-icon">⚠</div>
         <div>
-          <h4>DTC window dominated by background VehicleSpeed anomalies</h4>
-          <p>Both P0562 and P0117 fire on <strong>BMS / EMS</strong> but the DTC-window scoring surfaces <strong>TCU / VehicleSpeed</strong> as the top candidate. This is because VehicleSpeed generates persistent rule violations throughout the entire 60 s run (443 events), flooding any ±2 s window. The true causal spike — large BatteryVoltage (56.5) and CoolantTemp (55.6) scores — occurs at <strong>t = 40.1 s</strong>, which is 6–10 s <em>after</em> the DTCs fire. Consider tightening the DTC window, adding ECU-ownership weighting, or filtering out baseline-level VehicleSpeed violations before scoring.</p>
+          <h4>VehicleSpeed rule threshold requires recalibration</h4>
+          <p>441 limit violations across <em>all three runs</em> (159 fault + 150 normal_run_01 + 132 normal_run_02). The slope threshold or range is too loose to distinguish fault from normal operation. These violations are now confined to <code>rule_stat/limit_violations.csv</code> and do not influence anomaly scoring. Recommended action: tighten the slope threshold based on measured normal-run statistics.</p>
         </div>
       </div>
 
       <div class="insight" style="background:rgba(34,197,94,.06);border-color:rgba(34,197,94,.25)">
         <div class="insight-icon" style="color:var(--green)">✓</div>
         <div>
-          <h4 style="color:var(--green)">Strong drive-cluster correlation confirms sensor health</h4>
-          <p>EngineSpeed, ThrottlePosition and VehicleSpeed form a tight cluster (r ≥ 0.979, lag = 0). This suggests the drive-train sensing chain is intact and the MDF resampling alignment is correct. The BatteryVoltage ↔ CoolantTemp inverse correlation (−0.955) is physically plausible: as the engine warms up, charging system voltage dips slightly.</p>
-        </div>
-      </div>
-
-      <div class="insight" style="background:rgba(79,156,249,.06);border-color:rgba(79,156,249,.25)">
-        <div class="insight-icon" style="color:var(--blue)">→</div>
-        <div>
-          <h4 style="color:var(--blue)">Recommended next step — autoencoder anomaly detection</h4>
-          <p>The rule-based detector flags <strong>443 / 454 events on VehicleSpeed alone</strong>, suggesting the rule threshold (<code>max 250 km/h</code>) is too broad for this dataset. Training an LSTM autoencoder on the <em>normal_run_01 / normal_run_02</em> reference data will learn the natural drive-cluster covariance and produce residual-based anomaly scores that are inherently self-normalising and cluster-aware — directly addressing the DTC-window false-ranking problem.</p>
+          <h4 style="color:var(--green)">Architecture decision: rules as safety audit, AE as anomaly scorer</h4>
+          <p>Rolling z-score detection removed — the AE learns the per-signal distribution and supersedes it. Rule-based detection retained exclusively as a <strong>hard-limit safety audit</strong>: BatteryVoltage (2 violations, fault-exclusive) and CoolantTemp (3 violations, mostly fault) confirm the rules are physically meaningful when not dominated by VehicleSpeed noise. BatteryVoltage and CoolantTemp violations now serve as corroborating evidence alongside AE scores.</p>
         </div>
       </div>
 
@@ -909,29 +948,34 @@
   <div class="section">
     <div class="section-title">Output File Index — output/</div>
     <div class="file-grid">
-      <div class="file-item"><span class="fi-dot" style="background:var(--cyan)"></span>aligned_clean_signals.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--red)"></span>anomalies_long.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--red)"></span>signal_anomaly_summary.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--orange)"></span>ecu_relevance_ranking.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--red)"></span>dtc_root_cause_candidates.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--green)"></span>signal_ecu_mapping_resolved.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>correlation_matrix.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>correlation_matrix_fault_run_01.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>correlation_matrix_normal_run_01.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>correlation_matrix_normal_run_02.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>top_correlations.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>top_correlations_fault_run_01.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>top_correlations_normal_run_01.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>top_correlations_normal_run_02.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--purple)"></span>lag_vs_EngineSpeed.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--purple)"></span>lag_vs_EngineSpeed_fault_run_01.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--purple)"></span>lag_vs_EngineSpeed_normal_run_01.csv</div>
-      <div class="file-item"><span class="fi-dot" style="background:var(--purple)"></span>lag_vs_EngineSpeed_normal_run_02.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--cyan)"></span>signals/aligned_clean_signals.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--green)"></span>signals/signal_ecu_mapping_resolved.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--orange)"></span>rule_stat/limit_violations.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--orange)"></span>rule_stat/dtc_limit_violation_windows.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>correlation/correlation_matrix.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>correlation/correlation_matrix_fault_run_01.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>correlation/correlation_matrix_normal_run_01.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>correlation/correlation_matrix_normal_run_02.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>correlation/top_correlations.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>correlation/top_correlations_fault_run_01.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>correlation/top_correlations_normal_run_01.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--blue)"></span>correlation/top_correlations_normal_run_02.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--purple)"></span>lag/lag_vs_EngineSpeed.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--purple)"></span>lag/lag_vs_EngineSpeed_fault_run_01.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--purple)"></span>lag/lag_vs_EngineSpeed_normal_run_01.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--purple)"></span>lag/lag_vs_EngineSpeed_normal_run_02.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--cyan)"></span>autoencoder/ae_signal_errors.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--red)"></span>autoencoder/ae_anomaly_summary.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--red)"></span>autoencoder/ae_ecu_relevance.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--red)"></span>autoencoder/ae_dtc_candidates.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--muted)"></span>autoencoder/ae_model_info.json</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--yellow)"></span>comparison/method_comparison.csv</div>
+      <div class="file-item"><span class="fi-dot" style="background:var(--yellow)"></span>comparison/dtc_method_comparison.csv</div>
     </div>
   </div>
 
   <div style="border-top:1px solid var(--border);padding-top:16px;font-size:11px;color:var(--muted);text-align:center">
-    RCA Pipeline · ASAM MDF4 · rca_asam_autoencoder · Generated 2026-04-14
+    RCA Pipeline · ASAM MDF4 · rca_asam_autoencoder · mdf_io.py → rca_analytics.py → ae_anomaly.py · Generated 2026-04-14
   </div>
 
 </div>
