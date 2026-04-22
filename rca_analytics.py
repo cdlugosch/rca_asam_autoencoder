@@ -47,6 +47,13 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from config_loaders import (
+    build_sensor_ecu_table,
+    infer_ecu_from_name,
+    load_dtc_log,
+    load_sensor_ecu_map,
+)
+
 
 # ---------------------------------------------------------------------
 # Arguments
@@ -67,23 +74,6 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-# ---------------------------------------------------------------------
-# Config loaders
-# ---------------------------------------------------------------------
-
-def load_sensor_ecu_map(path: Optional[str]) -> Dict[str, str]:
-    if not path:
-        return {}
-    p = Path(path)
-    if not p.exists():
-        logging.warning("Sensor-ECU map not found: %s", p)
-        return {}
-    df = pd.read_csv(p)
-    if not {"sensor", "ecu"}.issubset(df.columns):
-        raise ValueError("sensor_ecu_map missing columns: {sensor, ecu}")
-    return dict(zip(df["sensor"], df["ecu"]))
-
-
 def load_rules(path: Optional[str]) -> pd.DataFrame:
     empty = pd.DataFrame(columns=["sensor", "min_value", "max_value", "max_abs_slope"])
     if not path:
@@ -97,26 +87,6 @@ def load_rules(path: Optional[str]) -> pd.DataFrame:
         if col not in df.columns:
             df[col] = np.nan
     return df[["sensor", "min_value", "max_value", "max_abs_slope"]]
-
-
-def load_dtc_log(path: Optional[str]) -> pd.DataFrame:
-    if not path:
-        return pd.DataFrame()
-    p = Path(path)
-    if not p.exists():
-        logging.warning("DTC log not found: %s", p)
-        return pd.DataFrame()
-    df = pd.read_csv(p)
-    if "dtc_code" not in df.columns:
-        raise ValueError("DTC log must contain column: dtc_code")
-    for col, default in [("ecu", ""), ("description", ""), ("run_id", "")]:
-        if col not in df.columns:
-            df[col] = default
-    if "relative_time_s" not in df.columns:
-        df["relative_time_s"] = np.nan
-    if "timestamp" in df.columns:
-        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
-    return df
 
 
 def load_intermediate(intermediate_dir: Path):
@@ -191,27 +161,6 @@ def resolve_dtc_timestamps(
             logging.warning("DTC %s at %s could not be matched to any run",
                             dtc_df.loc[idx, "dtc_code"], ts)
     return dtc_df
-
-
-# ---------------------------------------------------------------------
-# ECU mapping
-# ---------------------------------------------------------------------
-
-def infer_ecu_from_name(sensor: str) -> str:
-    if "." in sensor:
-        return sensor.split(".")[0]
-    if "_" in sensor:
-        prefix = sensor.split("_")[0]
-        if len(prefix) <= 8:
-            return prefix
-    return "UNKNOWN"
-
-
-def build_sensor_ecu_table(columns: List[str], sensor_ecu_map: Dict[str, str]) -> pd.DataFrame:
-    return pd.DataFrame(
-        [{"signal": c, "ecu": sensor_ecu_map.get(c, infer_ecu_from_name(c))}
-         for c in columns if c != "run_id"]
-    )
 
 
 # ---------------------------------------------------------------------
@@ -397,7 +346,10 @@ def main():
     intermediate_dir = Path(args.intermediate_dir)
     output_dir       = Path(args.output_dir)
 
-    # Purge output dir before every run
+    # Purge output dir before every run.
+    # WARNING: This also deletes Part C outputs (autoencoder/, comparison/) if they exist.
+    # Run order must be: Part A → Part B → Part C. Re-running Part B after Part C
+    # will delete Part C results and require re-running Part C to restore them.
     if output_dir.exists():
         shutil.rmtree(output_dir)
 

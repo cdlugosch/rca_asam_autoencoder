@@ -52,6 +52,13 @@ import pandas as pd
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
 
+from config_loaders import (
+    build_sensor_ecu_table,
+    infer_ecu_from_name,
+    load_dtc_log,
+    load_sensor_ecu_map,
+)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Arguments
@@ -77,58 +84,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dtc-window-before-s", type=float, default=2.0)
     p.add_argument("--dtc-window-after-s",  type=float, default=2.0)
     return p.parse_args()
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Config loaders  (duplicated from rca_analytics for standalone use)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def load_sensor_ecu_map(path: Optional[str]) -> Dict[str, str]:
-    if not path:
-        return {}
-    p = Path(path)
-    if not p.exists():
-        logging.warning("Sensor-ECU map not found: %s", p)
-        return {}
-    df = pd.read_csv(p)
-    if not {"sensor", "ecu"}.issubset(df.columns):
-        raise ValueError("sensor_ecu_map missing columns: {sensor, ecu}")
-    return dict(zip(df["sensor"], df["ecu"]))
-
-
-def load_dtc_log(path: Optional[str]) -> pd.DataFrame:
-    if not path:
-        return pd.DataFrame()
-    p = Path(path)
-    if not p.exists():
-        logging.warning("DTC log not found: %s", p)
-        return pd.DataFrame()
-    df = pd.read_csv(p)
-    if "dtc_code" not in df.columns:
-        raise ValueError("DTC log must contain column: dtc_code")
-    for col, default in [("ecu", ""), ("description", ""), ("run_id", "")]:
-        if col not in df.columns:
-            df[col] = default
-    if "relative_time_s" not in df.columns:
-        df["relative_time_s"] = np.nan
-    return df
-
-
-def infer_ecu_from_name(sensor: str) -> str:
-    if "." in sensor:
-        return sensor.split(".")[0]
-    if "_" in sensor:
-        prefix = sensor.split("_")[0]
-        if len(prefix) <= 8:
-            return prefix
-    return "UNKNOWN"
-
-
-def build_sensor_ecu_table(columns: List[str], sensor_ecu_map: Dict[str, str]) -> pd.DataFrame:
-    return pd.DataFrame(
-        [{"signal": c, "ecu": sensor_ecu_map.get(c, infer_ecu_from_name(c))}
-         for c in columns if c != "run_id"]
-    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -290,7 +245,14 @@ def compute_run_errors(
     T, n_signals = arr.shape
 
     if T < W:
-        # Not enough samples — return zeros
+        # Run is shorter than the window size — no windows can be formed.
+        # Returning zeros silently excludes this run from anomaly detection;
+        # its signals will show zero error and never be flagged as anomalous.
+        logging.warning(
+            "Run skipped in anomaly detection: only %d samples, need at least %d (window size). "
+            "All signals will have zero reconstruction error for this run.",
+            T, W,
+        )
         return np.zeros((T, n_signals))
 
     windows_raw, starts = make_windows(arr, W, stride=1)
