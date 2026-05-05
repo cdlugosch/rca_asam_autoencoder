@@ -20,13 +20,9 @@ Output written under <output-dir>:
     ae_ecu_relevance.csv      — ECU ranking by AE anomaly score
     ae_dtc_candidates.csv     — DTC window linking using AE scores
     ae_model_info.json        — architecture & training metadata
-  comparison/
-    method_comparison.csv     — signal ranking: rule/stat vs AE, side-by-side
-    dtc_method_comparison.csv — DTC top-signal/ECU: rule/stat vs AE
 
 Prerequisites:
     intermediate/        produced by mdf_io.py      (Part A)
-    output/rule_stat/    produced by rca_analytics.py (Part B)
 
 Example:
     python ae_anomaly.py \\
@@ -43,7 +39,7 @@ Dependencies:
 import argparse
 import json
 import logging
-import shutil
+
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -54,7 +50,6 @@ from sklearn.preprocessing import StandardScaler
 
 from config_loaders import (
     build_sensor_ecu_table,
-    infer_ecu_from_name,
     load_dtc_log,
     load_sensor_ecu_map,
 )
@@ -417,68 +412,6 @@ def extract_ae_dtc_windows(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Comparison: rule/stat vs AE
-# ─────────────────────────────────────────────────────────────────────────────
-
-def build_method_comparison(
-    lv_path: Path,
-    ae_summary: pd.DataFrame,
-) -> pd.DataFrame:
-    """
-    Combine AE anomaly summary with hard limit-violation counts per signal.
-
-    Columns: signal | ae_rank | ae_anomaly_count | ae_score_normalized | limit_violation_count
-    """
-    ae = ae_summary.rename(columns={
-        "anomaly_count":        "ae_anomaly_count",
-        "score_normalized_sum": "ae_score_normalized",
-    })[["signal", "ae_anomaly_count", "ae_score_normalized"]].copy() \
-        if not ae_summary.empty else \
-        pd.DataFrame(columns=["signal", "ae_anomaly_count", "ae_score_normalized"])
-
-    if lv_path.exists():
-        lv = pd.read_csv(lv_path)
-        lv_counts = lv.groupby("signal").size().reset_index(name="limit_violation_count")
-        cmp = ae.merge(lv_counts, on="signal", how="outer").fillna(0)
-    else:
-        cmp = ae.copy()
-        cmp["limit_violation_count"] = 0
-
-    cmp["ae_rank"] = cmp["ae_score_normalized"].rank(ascending=False, method="min").astype(int)
-    return cmp.sort_values("ae_rank")[
-        ["signal", "ae_rank", "ae_anomaly_count", "ae_score_normalized", "limit_violation_count"]
-    ]
-
-
-def build_dtc_comparison(
-    lv_dtc_path: Path,
-    ae_dtc: pd.DataFrame,
-) -> pd.DataFrame:
-    """
-    Compare AE DTC candidates against hard limit-violation DTC windows.
-    Adds ae_matches_dtc_ecu to flag when the AE top ECU agrees with the DTC origin.
-    """
-    ae_cols = ["dtc_code", "top_signal", "top_ecu", "top_signal_score", "matched_anomaly_count"]
-    ae = ae_dtc[ae_cols].copy() if not ae_dtc.empty else pd.DataFrame(columns=ae_cols)
-    ae = ae.rename(columns={c: f"ae_{c}" for c in
-                             ["top_signal", "top_ecu", "top_signal_score", "matched_anomaly_count"]})
-
-    if not lv_dtc_path.exists():
-        logging.warning("dtc_limit_violation_windows.csv not found — DTC comparison incomplete")
-        return ae
-
-    lv = pd.read_csv(lv_dtc_path)[
-        ["dtc_code", "dtc_ecu", "description",
-         "violation_count", "signals_in_window", "ecus_in_window"]
-    ]
-    merged = lv.merge(ae, on="dtc_code", how="outer").fillna("")
-    merged["ae_matches_dtc_ecu"] = merged.apply(
-        lambda r: bool(r["ae_top_ecu"]) and r["ae_top_ecu"] == r["dtc_ecu"], axis=1
-    )
-    return merged
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -488,14 +421,8 @@ def main():
 
     intermediate_dir = Path(args.intermediate_dir)
     output_dir       = Path(args.output_dir)
-    ae_dir           = output_dir / "autoencoder"
-    cmp_dir          = output_dir / "comparison"
-
-    # Only purge AE and comparison subdirs — signals/rule_stat/correlation/lag stay intact
-    for d in (ae_dir, cmp_dir):
-        if d.exists():
-            shutil.rmtree(d)
-        d.mkdir(parents=True)
+    ae_dir = output_dir / "autoencoder"
+    ae_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Load data ────────────────────────────────────────────────────────────
     df = load_intermediate(intermediate_dir)
@@ -571,23 +498,6 @@ def main():
         json.dump(model_info, f, indent=2)
     logging.info("Autoencoder outputs written to %s", ae_dir)
 
-    # ── Comparison ───────────────────────────────────────────────────────────
-    rs_dir = output_dir / "rule_stat"
-    method_cmp = build_method_comparison(
-        rs_dir / "limit_violations.csv",
-        ae_signal_summary,
-    )
-    if not method_cmp.empty:
-        method_cmp.to_csv(cmp_dir / "method_comparison.csv", index=False)
-
-    dtc_cmp = build_dtc_comparison(
-        rs_dir / "dtc_limit_violation_windows.csv",
-        ae_dtc,
-    )
-    if not dtc_cmp.empty:
-        dtc_cmp.to_csv(cmp_dir / "dtc_method_comparison.csv", index=False)
-
-    logging.info("Comparison outputs written to %s", cmp_dir)
     logging.info("Done.")
 
 

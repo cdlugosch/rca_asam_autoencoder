@@ -40,16 +40,15 @@ Dependencies:
 import argparse
 import json
 import logging
-import shutil
+
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
 
 from config_loaders import (
     build_sensor_ecu_table,
-    infer_ecu_from_name,
     load_dtc_log,
     load_sensor_ecu_map,
 )
@@ -346,19 +345,12 @@ def main():
     intermediate_dir = Path(args.intermediate_dir)
     output_dir       = Path(args.output_dir)
 
-    # Purge output dir before every run.
-    # WARNING: This also deletes Part C outputs (autoencoder/, comparison/) if they exist.
-    # Run order must be: Part A → Part B → Part C. Re-running Part B after Part C
-    # will delete Part C results and require re-running Part C to restore them.
-    if output_dir.exists():
-        shutil.rmtree(output_dir)
-
     signals_dir     = output_dir / "signals"
     rule_stat_dir   = output_dir / "rule_stat"
     correlation_dir = output_dir / "correlation"
     lag_dir         = output_dir / "lag"
     for d in (signals_dir, rule_stat_dir, correlation_dir, lag_dir):
-        d.mkdir(parents=True)
+        d.mkdir(parents=True, exist_ok=True)
 
     # 1) Load parquet + run metadata from Part A
     df, mdf_start_times = load_intermediate(intermediate_dir)

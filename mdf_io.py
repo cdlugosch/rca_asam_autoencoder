@@ -2,7 +2,7 @@
 """
 mdf_io.py — Part A: MDF files → parquet + channel inventory
 
-Purges <intermediate-dir> before each run, then writes:
+Writes (overwriting existing files):
   timeseries/<run_id>.parquet  — resampled, cleaned signal data (one file per MDF run)
   channel_info.csv             — channel inventory across all runs (for inspection)
   run_metadata.json            — MDF start times needed by Part B for DTC resolution
@@ -27,7 +27,7 @@ Dependencies:
 import argparse
 import json
 import logging
-import shutil
+
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -126,10 +126,7 @@ def main():
     input_dir = Path(args.input_dir)
     intermediate_dir = Path(args.intermediate_dir)
 
-    # Purge intermediate dir before every run
-    if intermediate_dir.exists():
-        shutil.rmtree(intermediate_dir)
-    intermediate_dir.mkdir(parents=True)
+    intermediate_dir.mkdir(parents=True, exist_ok=True)
 
     # Channel discovery mode — list channels, write inventory, exit
     if args.list_channels:
@@ -143,7 +140,7 @@ def main():
         raise RuntimeError(f"No MDF files found in {input_dir}")
 
     timeseries_dir = intermediate_dir / "timeseries"
-    timeseries_dir.mkdir()
+    timeseries_dir.mkdir(exist_ok=True)
 
     mdf_start_times: Dict[str, Optional[str]] = {}
     channel_sets: Dict[str, List[str]] = {}
