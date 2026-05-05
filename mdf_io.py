@@ -2,29 +2,18 @@
 """
 mdf_io.py — MDF files → parquet + channel inventory
 
+Edit the CONFIG section below, then run:
+    python mdf_io.py
+
 Writes (overwriting existing files):
   timeseries/<run_id>.parquet  — resampled, cleaned signal data (one file per MDF run)
   channel_info.csv             — channel inventory across all runs (for inspection)
   run_metadata.json            — MDF start times needed for DTC resolution
 
-Example:
-    python mdf_io.py \\
-      --input-dir ./mdf_files \\
-      --intermediate-dir ./intermediate \\
-      --sampling 100ms \\
-      --channels-file config/channels.txt
-
-    # Channel discovery mode (lists channels, writes channel_info.csv, then exits):
-    python mdf_io.py --input-dir ./mdf_files --intermediate-dir ./intermediate --list-channels
-
 Dependencies:
-    - asammdf
-    - pandas
-    - numpy
-    - pyarrow  (for parquet)
+    - asammdf, pandas, numpy, pyarrow
 """
 
-import argparse
 import json
 import logging
 
@@ -36,15 +25,15 @@ import pandas as pd
 from asammdf import MDF
 
 
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="MDF → parquet")
-    p.add_argument("--input-dir", required=True, help="Folder with .mf4/.mdf files")
-    p.add_argument("--intermediate-dir", required=True, help="Output folder for parquet + metadata")
-    p.add_argument("--sampling", default="100ms", help="Resampling interval, e.g. 10ms, 100ms, 1s")
-    p.add_argument("--channels-file", default=None, help="Optional text file: one channel name per line")
-    p.add_argument("--list-channels", action="store_true",
-                   help="Discover all channels, write channel_info.csv, then exit")
-    return p.parse_args()
+# ─────────────────────────────────────────────────────────────────────────────
+# Config — edit these values before running
+# ─────────────────────────────────────────────────────────────────────────────
+
+INPUT_DIR        = "./mdf_files"
+INTERMEDIATE_DIR = "./intermediate"
+SAMPLING         = "100ms"        # resampling interval: 10ms, 100ms, 1s, …
+CHANNELS_FILE    = None           # path to text file with one channel name per line
+LIST_CHANNELS    = False          # True: discover channels, write inventory, then exit
 
 
 def load_channel_list(path: Optional[str]) -> Optional[List[str]]:
@@ -120,21 +109,20 @@ def write_channel_info(channel_sets: Dict[str, List[str]], out_path: Path) -> No
 
 
 def main():
-    args = parse_args()
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s")
 
-    input_dir = Path(args.input_dir)
-    intermediate_dir = Path(args.intermediate_dir)
+    input_dir        = Path(INPUT_DIR)
+    intermediate_dir = Path(INTERMEDIATE_DIR)
 
     intermediate_dir.mkdir(parents=True, exist_ok=True)
 
     # Channel discovery mode — list channels, write inventory, exit
-    if args.list_channels:
+    if LIST_CHANNELS:
         run_channels = discover_channels(input_dir)
         write_channel_info(run_channels, intermediate_dir / "channel_info.csv")
         return
 
-    channels = load_channel_list(args.channels_file)
+    channels = load_channel_list(CHANNELS_FILE)
     files = sorted(list(input_dir.glob("*.mf4")) + list(input_dir.glob("*.mdf")))
     if not files:
         raise RuntimeError(f"No MDF files found in {input_dir}")
@@ -146,7 +134,7 @@ def main():
     channel_sets: Dict[str, List[str]] = {}
 
     for p in files:
-        df, start_time = load_mdf_to_df(p, channels, args.sampling)
+        df, start_time = load_mdf_to_df(p, channels, SAMPLING)
         df = clean_dataframe(df)
         df.to_parquet(timeseries_dir / f"{p.stem}.parquet")
         mdf_start_times[p.stem] = str(start_time) if start_time is not None else None
