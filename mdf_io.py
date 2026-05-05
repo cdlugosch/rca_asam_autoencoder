@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-mdf_io.py — Part A: MDF files → parquet + channel inventory
+mdf_io.py — MDF files → parquet + channel inventory
 
 Writes (overwriting existing files):
   timeseries/<run_id>.parquet  — resampled, cleaned signal data (one file per MDF run)
   channel_info.csv             — channel inventory across all runs (for inspection)
-  run_metadata.json            — MDF start times needed by Part B for DTC resolution
+  run_metadata.json            — MDF start times needed for DTC resolution
 
 Example:
     python mdf_io.py \\
@@ -37,7 +37,7 @@ from asammdf import MDF
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="MDF → parquet (Part A)")
+    p = argparse.ArgumentParser(description="MDF → parquet")
     p.add_argument("--input-dir", required=True, help="Folder with .mf4/.mdf files")
     p.add_argument("--intermediate-dir", required=True, help="Output folder for parquet + metadata")
     p.add_argument("--sampling", default="100ms", help="Resampling interval, e.g. 10ms, 100ms, 1s")
@@ -153,7 +153,7 @@ def main():
         channel_sets[p.stem] = [c for c in df.columns if c != "run_id"]
         logging.info("Written %s — %d rows, %d channels", p.stem, len(df), len(channel_sets[p.stem]))
 
-    # run_metadata.json: MDF start times consumed by Part B for DTC resolution
+    # run_metadata.json: MDF start times consumed by ae_anomaly.py for DTC resolution
     with open(intermediate_dir / "run_metadata.json", "w") as f:
         json.dump({"start_times": mdf_start_times}, f, indent=2)
 

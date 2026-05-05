@@ -1,20 +1,12 @@
 #!/usr/bin/env python3
 """
-ae_anomaly.py — Part C: Windowed autoencoder anomaly detection
+ae_anomaly.py — Windowed autoencoder anomaly detection
 
 Trains a windowed dense autoencoder (sklearn MLPRegressor used as X→X
 reconstructor) on reference (normal) runs, then computes per-signal
 reconstruction error across all runs.
 
-Key advantage over rule/stat (Part B):
-  The AE learns the *joint* distribution of all signals.  Correlated signals
-  that individually look fine but deviate from each other produce high
-  reconstruction error even when no single-signal rule fires.  Conversely,
-  VehicleSpeed fluctuations that are consistently present in normal data are
-  learned as expected and do not inflate the anomaly score.
-
-Output written under <output-dir>:
-  autoencoder/
+Output written under <output-dir>/autoencoder/:
     ae_signal_errors.csv      — per-timestep per-signal MSE reconstruction error
     ae_anomaly_summary.csv    — signal ranking by AE anomaly score
     ae_ecu_relevance.csv      — ECU ranking by AE anomaly score
@@ -22,7 +14,7 @@ Output written under <output-dir>:
     ae_model_info.json        — architecture & training metadata
 
 Prerequisites:
-    intermediate/        produced by mdf_io.py      (Part A)
+    intermediate/        produced by mdf_io.py
 
 Example:
     python ae_anomaly.py \\
@@ -32,8 +24,7 @@ Example:
       --dtc-log config/dtc_log.csv
 
 Dependencies:
-    - numpy, pandas, pyarrow   (same as Part B)
-    - scikit-learn             (pip install scikit-learn)
+    - numpy, pandas, pyarrow, scikit-learn
 """
 
 import argparse
@@ -60,7 +51,7 @@ from config_loaders import (
 # ─────────────────────────────────────────────────────────────────────────────
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Windowed autoencoder anomaly detection (Part C)")
+    p = argparse.ArgumentParser(description="Windowed autoencoder anomaly detection")
     p.add_argument("--intermediate-dir", required=True)
     p.add_argument("--output-dir",       required=True)
     p.add_argument("--sensor-ecu-map",   default=None)
