@@ -24,7 +24,6 @@ Dependencies:
 """
 
 import json
-import logging
 
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -34,7 +33,6 @@ import pandas as pd
 import joblib
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
-
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -65,7 +63,7 @@ def load_sensor_ecu_map(path: Optional[str]) -> Dict[str, str]:
         return {}
     p = Path(path)
     if not p.exists():
-        logging.warning("Sensor-ECU map not found: %s", p)
+        print(f"WARNING: Sensor-ECU map not found: {p}")
         return {}
     df = pd.read_csv(p)
     if not {"sensor", "ecu"}.issubset(df.columns):
@@ -78,7 +76,7 @@ def load_dtc_log(path: Optional[str]) -> pd.DataFrame:
         return pd.DataFrame()
     p = Path(path)
     if not p.exists():
-        logging.warning("DTC log not found: %s", p)
+        print(f"WARNING: DTC log not found: {p}")
         return pd.DataFrame()
     df = pd.read_csv(p)
     if "dtc_code" not in df.columns:
@@ -121,9 +119,7 @@ def load_intermediate(intermediate_dir: Path) -> pd.DataFrame:
         raise RuntimeError(f"No parquet files in {timeseries_dir}")
     frames = [pd.read_parquet(f) for f in parquet_files]
     df = pd.concat(frames, axis=0)
-    logging.info("Loaded %d runs, %d rows, %d signals",
-                 len(frames), len(df),
-                 len([c for c in df.columns if c != "run_id"]))
+    print(f"Loaded {len(frames)} runs, {len(df)} rows, {len([c for c in df.columns if c != 'run_id'])} signals")
     return df
 
 
@@ -134,15 +130,14 @@ def identify_training_runs(df: pd.DataFrame, normal_runs: Optional[List[str]]) -
         if missing:
             raise ValueError(f"Specified normal runs not found in data: {missing}")
         return normal_runs
-    # Auto-detect
     keywords = ("normal", "ref", "baseline")
     detected = [r for r in all_runs if any(kw in r.lower() for kw in keywords)]
     if not detected:
         raise RuntimeError(
-            "Could not auto-detect training runs.  "
-            "Pass --normal-runs <run_id> [run_id ...] explicitly."
+            "Could not auto-detect training runs. "
+            "Set NORMAL_RUNS explicitly in the config."
         )
-    logging.info("Auto-detected training runs: %s", detected)
+    print(f"Auto-detected training runs: {detected}")
     return detected
 
 
@@ -226,7 +221,7 @@ def train_autoencoder(
         windows, _ = make_windows(arr, W, stride=1)
         if len(windows):
             all_windows.append(windows)
-        logging.info("  Training windows from %s: %d", run_id, len(windows))
+        print(f"  Training windows from {run_id}: {len(windows)}")
 
     if not all_windows:
         raise RuntimeError("No training windows could be constructed.")
@@ -246,10 +241,9 @@ def train_autoencoder(
         n_iter_no_change=20,
         verbose=False,
     )
-    logging.info("Training autoencoder  arch=%s  windows=%d  features=%d",
-                 hidden_layers, len(X_scaled), X_scaled.shape[1])
+    print(f"Training autoencoder  arch={hidden_layers}  windows={len(X_scaled)}  features={X_scaled.shape[1]}")
     ae.fit(X_scaled, X_scaled)
-    logging.info("Training done — loss: %.6f  iters: %d", ae.loss_, ae.n_iter_)
+    print(f"Training done — loss: {ae.loss_:.6f}  iters: {ae.n_iter_}")
     return ae, scaler
 
 
@@ -272,11 +266,8 @@ def compute_run_errors(
         # Run is shorter than the window size — no windows can be formed.
         # Returning zeros silently excludes this run from anomaly detection;
         # its signals will show zero error and never be flagged as anomalous.
-        logging.warning(
-            "Run skipped in anomaly detection: only %d samples, need at least %d (window size). "
-            "All signals will have zero reconstruction error for this run.",
-            T, W,
-        )
+        print(f"WARNING: Run skipped in anomaly detection: only {T} samples, need at least {W} (window size). "
+              "All signals will have zero reconstruction error for this run.")
         return np.zeros((T, n_signals))
 
     windows_raw, starts = make_windows(arr, W, stride=1)
@@ -331,7 +322,7 @@ def compute_thresholds(
         .to_dict()
     )
     for sig, thr in thresholds.items():
-        logging.info("  Threshold  %-20s  %.6f  (p%.0f)", sig, thr, percentile)
+        print(f"  Threshold  {sig:<20}  {thr:.6f}  (p{percentile:.0f})")
     return thresholds
 
 
@@ -461,12 +452,12 @@ def save_model_bundle(
         "window_size": window_size,
         "threshold_percentile": threshold_pct,
     }, path)
-    logging.info("Model bundle saved to %s", path)
+    print(f"Model bundle saved to {path}")
 
 
 def load_model_bundle(path: Path) -> dict:
     bundle = joblib.load(path)
-    logging.info("Model bundle loaded from %s", path)
+    print(f"Model bundle loaded from {path}")
     return bundle
 
 
@@ -475,8 +466,6 @@ def load_model_bundle(path: Path) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main():
-    logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s")
-
     intermediate_dir = Path(INTERMEDIATE_DIR)
     output_dir       = Path(OUTPUT_DIR)
     ae_dir = output_dir / "autoencoder"
@@ -501,14 +490,14 @@ def main():
         missing = [s for s in signal_cols if s not in df.columns]
         if missing:
             raise ValueError(f"Model expects signals not present in data: {missing}")
-        logging.info("Inference runs: %s", df["run_id"].unique().tolist())
+        print(f"Inference runs: {df['run_id'].unique().tolist()}")
     else:
         signal_cols   = [c for c in df.columns if c != "run_id"]
         window_size   = WINDOW_SIZE
         threshold_pct = AE_THRESHOLD_PCT
         training_run_ids = identify_training_runs(df, NORMAL_RUNS)
-        logging.info("Training runs : %s", training_run_ids)
-        logging.info("Inference runs: %s", df["run_id"].unique().tolist())
+        print(f"Training runs : {training_run_ids}")
+        print(f"Inference runs: {df['run_id'].unique().tolist()}")
         ae, scaler = train_autoencoder(
             df, training_run_ids, signal_cols,
             W=window_size,
@@ -526,14 +515,13 @@ def main():
     sensor_ecu_df = build_sensor_ecu_table(signal_cols, sensor_ecu_map)
 
     # ── Compute reconstruction errors ────────────────────────────────────────
-    logging.info("Computing per-signal reconstruction errors …")
+    print("Computing per-signal reconstruction errors …")
     error_df = compute_all_errors(df, signal_cols, ae, scaler, window_size)
 
     # ── Flag anomalies ───────────────────────────────────────────────────────
     ae_long    = flag_anomalies(error_df, thresholds)
     total_anom = ae_long["is_anomaly"].sum()
-    logging.info("AE anomaly events: %d  (threshold percentile=%.0f)",
-                 total_anom, threshold_pct)
+    print(f"AE anomaly events: {total_anom}  (threshold percentile={threshold_pct:.0f})")
 
     # ── Aggregate ────────────────────────────────────────────────────────────
     ae_signal_summary = aggregate_ae_signal_summary(ae_long)
@@ -547,7 +535,7 @@ def main():
             DTC_WINDOW_BEFORE_S, DTC_WINDOW_AFTER_S,
         )
 
-    # ── Write autoencoder outputs ─────────────────────────────────────────────
+    # ── Write outputs ─────────────────────────────────────────────────────────
     ae_long[["run_id", "time_s", "signal", "ae_error",
              "is_anomaly", "score_normalized"]].to_csv(
         ae_dir / "ae_signal_errors.csv", index=False)
@@ -575,9 +563,8 @@ def main():
     }
     with open(ae_dir / "ae_model_info.json", "w") as f:
         json.dump(model_info, f, indent=2)
-    logging.info("Autoencoder outputs written to %s", ae_dir)
-
-    logging.info("Done.")
+    print(f"Autoencoder outputs written to {ae_dir}")
+    print("Done.")
 
 
 if __name__ == "__main__":
