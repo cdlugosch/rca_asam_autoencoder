@@ -6,7 +6,10 @@ Trains a windowed dense autoencoder (sklearn MLPRegressor used as X→X
 reconstructor) on reference (normal) runs, then computes per-signal
 reconstruction error across all runs.
 
-Output written under <output-dir>/autoencoder/:
+Edit the CONFIG section below to set paths and model parameters, then run:
+    python ae_anomaly.py
+
+Output written under OUTPUT_DIR/autoencoder/:
     ae_signal_errors.csv      — per-timestep per-signal MSE reconstruction error
     ae_anomaly_summary.csv    — signal ranking by AE anomaly score
     ae_ecu_relevance.csv      — ECU ranking by AE anomaly score
@@ -16,18 +19,10 @@ Output written under <output-dir>/autoencoder/:
 Prerequisites:
     intermediate/        produced by mdf_io.py
 
-Example:
-    python ae_anomaly.py \\
-      --intermediate-dir ./intermediate \\
-      --output-dir ./output \\
-      --sensor-ecu-map config/sensor_ecu_map.csv \\
-      --dtc-log config/dtc_log.csv
-
 Dependencies:
     - numpy, pandas, pyarrow, scikit-learn
 """
 
-import argparse
 import json
 import logging
 
@@ -43,33 +38,22 @@ from sklearn.preprocessing import StandardScaler
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Arguments
+# Config — edit these values before running
 # ─────────────────────────────────────────────────────────────────────────────
 
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Windowed autoencoder anomaly detection")
-    p.add_argument("--intermediate-dir", required=True)
-    p.add_argument("--output-dir",       required=True)
-    p.add_argument("--sensor-ecu-map",   default=None)
-    p.add_argument("--dtc-log",          default=None)
-    p.add_argument("--normal-runs",      nargs="*", default=None,
-                   help="Run IDs to use as training data.  Auto-detected if omitted "
-                        "(any run_id containing 'normal', 'ref', or 'baseline').")
-    p.add_argument("--window-size",      type=int,   default=20,
-                   help="Sliding window width in samples (default: 20 = 2 s @ 100 ms)")
-    p.add_argument("--hidden-layers",    nargs="+",  type=int, default=[64, 16, 64],
-                   help="Hidden layer sizes for the MLP autoencoder (default: 64 16 64)")
-    p.add_argument("--max-iter",         type=int,   default=500)
-    p.add_argument("--ae-threshold-pct", type=float, default=95.0,
-                   help="Percentile of training-set reconstruction error used as "
-                        "anomaly threshold per signal (default: 95)")
-    p.add_argument("--dtc-window-before-s", type=float, default=2.0)
-    p.add_argument("--dtc-window-after-s",  type=float, default=2.0)
-    p.add_argument("--save-model", default=None,
-                   help="Save trained model bundle to this path (e.g. model.joblib)")
-    p.add_argument("--load-model", default=None,
-                   help="Load a saved model bundle; skips training entirely")
-    return p.parse_args()
+INTERMEDIATE_DIR    = "./intermediate"
+OUTPUT_DIR          = "./output"
+SENSOR_ECU_MAP      = "./config/sensor_ecu_map.csv"   # set to None to skip
+DTC_LOG             = "./config/dtc_log.csv"          # set to None to skip
+NORMAL_RUNS         = ["normal_run_01", "normal_run_02"]  # or None to auto-detect
+WINDOW_SIZE         = 20          # sliding window in samples (20 = 2 s @ 100 ms)
+HIDDEN_LAYERS       = [64, 16, 64]
+MAX_ITER            = 500
+AE_THRESHOLD_PCT    = 95.0        # anomaly threshold percentile
+DTC_WINDOW_BEFORE_S = 2.0
+DTC_WINDOW_AFTER_S  = 2.0
+SAVE_MODEL          = None        # e.g. "./output/model.joblib"
+LOAD_MODEL          = None        # e.g. "./output/model.joblib" — skips training
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -491,28 +475,27 @@ def load_model_bundle(path: Path) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main():
-    args = parse_args()
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s")
 
-    intermediate_dir = Path(args.intermediate_dir)
-    output_dir       = Path(args.output_dir)
+    intermediate_dir = Path(INTERMEDIATE_DIR)
+    output_dir       = Path(OUTPUT_DIR)
     ae_dir = output_dir / "autoencoder"
     ae_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Load data ────────────────────────────────────────────────────────────
     df = load_intermediate(intermediate_dir)
 
-    sensor_ecu_map = load_sensor_ecu_map(args.sensor_ecu_map)
-    dtc_df         = load_dtc_log(args.dtc_log)
+    sensor_ecu_map = load_sensor_ecu_map(SENSOR_ECU_MAP)
+    dtc_df         = load_dtc_log(DTC_LOG)
 
     # ── Train or load model ──────────────────────────────────────────────────
-    if args.load_model:
-        bundle       = load_model_bundle(Path(args.load_model))
-        ae           = bundle["ae"]
-        scaler       = bundle["scaler"]
-        thresholds   = bundle["thresholds"]
-        signal_cols  = bundle["signal_cols"]
-        window_size  = bundle["window_size"]
+    if LOAD_MODEL:
+        bundle        = load_model_bundle(Path(LOAD_MODEL))
+        ae            = bundle["ae"]
+        scaler        = bundle["scaler"]
+        thresholds    = bundle["thresholds"]
+        signal_cols   = bundle["signal_cols"]
+        window_size   = bundle["window_size"]
         threshold_pct = bundle["threshold_percentile"]
         training_run_ids = []
         missing = [s for s in signal_cols if s not in df.columns]
@@ -520,23 +503,23 @@ def main():
             raise ValueError(f"Model expects signals not present in data: {missing}")
         logging.info("Inference runs: %s", df["run_id"].unique().tolist())
     else:
-        signal_cols  = [c for c in df.columns if c != "run_id"]
-        window_size  = args.window_size
-        threshold_pct = args.ae_threshold_pct
-        training_run_ids = identify_training_runs(df, args.normal_runs)
+        signal_cols   = [c for c in df.columns if c != "run_id"]
+        window_size   = WINDOW_SIZE
+        threshold_pct = AE_THRESHOLD_PCT
+        training_run_ids = identify_training_runs(df, NORMAL_RUNS)
         logging.info("Training runs : %s", training_run_ids)
         logging.info("Inference runs: %s", df["run_id"].unique().tolist())
         ae, scaler = train_autoencoder(
             df, training_run_ids, signal_cols,
             W=window_size,
-            hidden_layers=args.hidden_layers,
-            max_iter=args.max_iter,
+            hidden_layers=HIDDEN_LAYERS,
+            max_iter=MAX_ITER,
         )
         error_df   = compute_all_errors(df, signal_cols, ae, scaler, window_size)
         thresholds = compute_thresholds(error_df, training_run_ids, threshold_pct)
-        if args.save_model:
+        if SAVE_MODEL:
             save_model_bundle(
-                Path(args.save_model), ae, scaler, thresholds,
+                Path(SAVE_MODEL), ae, scaler, thresholds,
                 signal_cols, window_size, threshold_pct,
             )
 
@@ -561,7 +544,7 @@ def main():
     if not dtc_df.empty and "relative_time_s" in dtc_df.columns:
         ae_dtc = extract_ae_dtc_windows(
             dtc_df, ae_long, sensor_ecu_df,
-            args.dtc_window_before_s, args.dtc_window_after_s,
+            DTC_WINDOW_BEFORE_S, DTC_WINDOW_AFTER_S,
         )
 
     # ── Write autoencoder outputs ─────────────────────────────────────────────
@@ -588,7 +571,7 @@ def main():
         "final_loss":          float(ae.loss_),
         "threshold_percentile": threshold_pct,
         "thresholds":          {k: float(v) for k, v in thresholds.items()},
-        "loaded_from":         str(args.load_model) if args.load_model else None,
+        "loaded_from":         str(LOAD_MODEL) if LOAD_MODEL else None,
     }
     with open(ae_dir / "ae_model_info.json", "w") as f:
         json.dump(model_info, f, indent=2)
