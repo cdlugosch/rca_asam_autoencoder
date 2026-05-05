@@ -36,6 +36,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import joblib
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
 
@@ -69,6 +70,10 @@ def parse_args() -> argparse.Namespace:
                         "anomaly threshold per signal (default: 95)")
     p.add_argument("--dtc-window-before-s", type=float, default=2.0)
     p.add_argument("--dtc-window-after-s",  type=float, default=2.0)
+    p.add_argument("--save-model", default=None,
+                   help="Save trained model bundle to this path (e.g. model.joblib)")
+    p.add_argument("--load-model", default=None,
+                   help="Load a saved model bundle; skips training entirely")
     return p.parse_args()
 
 
@@ -403,6 +408,36 @@ def extract_ae_dtc_windows(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Model persistence
+# ─────────────────────────────────────────────────────────────────────────────
+
+def save_model_bundle(
+    path: Path,
+    ae: MLPRegressor,
+    scaler: StandardScaler,
+    thresholds: Dict[str, float],
+    signal_cols: List[str],
+    window_size: int,
+    threshold_pct: float,
+) -> None:
+    joblib.dump({
+        "ae": ae,
+        "scaler": scaler,
+        "thresholds": thresholds,
+        "signal_cols": signal_cols,
+        "window_size": window_size,
+        "threshold_percentile": threshold_pct,
+    }, path)
+    logging.info("Model bundle saved to %s", path)
+
+
+def load_model_bundle(path: Path) -> dict:
+    bundle = joblib.load(path)
+    logging.info("Model bundle loaded from %s", path)
+    return bundle
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -417,35 +452,56 @@ def main():
 
     # ── Load data ────────────────────────────────────────────────────────────
     df = load_intermediate(intermediate_dir)
-    signal_cols = [c for c in df.columns if c != "run_id"]
 
     sensor_ecu_map = load_sensor_ecu_map(args.sensor_ecu_map)
-    sensor_ecu_df  = build_sensor_ecu_table(df.columns.tolist(), sensor_ecu_map)
     dtc_df         = load_dtc_log(args.dtc_log)
 
-    training_run_ids = identify_training_runs(df, args.normal_runs)
-    logging.info("Training runs : %s", training_run_ids)
-    logging.info("Inference runs: %s", df["run_id"].unique().tolist())
+    # ── Train or load model ──────────────────────────────────────────────────
+    if args.load_model:
+        bundle       = load_model_bundle(Path(args.load_model))
+        ae           = bundle["ae"]
+        scaler       = bundle["scaler"]
+        thresholds   = bundle["thresholds"]
+        signal_cols  = bundle["signal_cols"]
+        window_size  = bundle["window_size"]
+        threshold_pct = bundle["threshold_percentile"]
+        training_run_ids = []
+        missing = [s for s in signal_cols if s not in df.columns]
+        if missing:
+            raise ValueError(f"Model expects signals not present in data: {missing}")
+        logging.info("Inference runs: %s", df["run_id"].unique().tolist())
+    else:
+        signal_cols  = [c for c in df.columns if c != "run_id"]
+        window_size  = args.window_size
+        threshold_pct = args.ae_threshold_pct
+        training_run_ids = identify_training_runs(df, args.normal_runs)
+        logging.info("Training runs : %s", training_run_ids)
+        logging.info("Inference runs: %s", df["run_id"].unique().tolist())
+        ae, scaler = train_autoencoder(
+            df, training_run_ids, signal_cols,
+            W=window_size,
+            hidden_layers=args.hidden_layers,
+            max_iter=args.max_iter,
+        )
+        error_df   = compute_all_errors(df, signal_cols, ae, scaler, window_size)
+        thresholds = compute_thresholds(error_df, training_run_ids, threshold_pct)
+        if args.save_model:
+            save_model_bundle(
+                Path(args.save_model), ae, scaler, thresholds,
+                signal_cols, window_size, threshold_pct,
+            )
 
-    # ── Train autoencoder ────────────────────────────────────────────────────
-    ae, scaler = train_autoencoder(
-        df, training_run_ids, signal_cols,
-        W=args.window_size,
-        hidden_layers=args.hidden_layers,
-        max_iter=args.max_iter,
-    )
+    sensor_ecu_df = build_sensor_ecu_table(signal_cols, sensor_ecu_map)
 
     # ── Compute reconstruction errors ────────────────────────────────────────
     logging.info("Computing per-signal reconstruction errors …")
-    error_df = compute_all_errors(df, signal_cols, ae, scaler, args.window_size)
+    error_df = compute_all_errors(df, signal_cols, ae, scaler, window_size)
 
-    # ── Threshold and flag ───────────────────────────────────────────────────
-    thresholds = compute_thresholds(error_df, training_run_ids, args.ae_threshold_pct)
+    # ── Flag anomalies ───────────────────────────────────────────────────────
     ae_long    = flag_anomalies(error_df, thresholds)
-
     total_anom = ae_long["is_anomaly"].sum()
     logging.info("AE anomaly events: %d  (threshold percentile=%.0f)",
-                 total_anom, args.ae_threshold_pct)
+                 total_anom, threshold_pct)
 
     # ── Aggregate ────────────────────────────────────────────────────────────
     ae_signal_summary = aggregate_ae_signal_summary(ae_long)
@@ -469,21 +525,21 @@ def main():
         ae_dtc.to_csv(ae_dir / "ae_dtc_candidates.csv", index=False)
 
     model_info = {
-        "backend":            "sklearn.MLPRegressor",
-        "hidden_layer_sizes": list(args.hidden_layers),
-        "input_features":     args.window_size * len(signal_cols),
-        "window_size_samples": args.window_size,
-        "signals":            signal_cols,
-        "training_runs":      training_run_ids,
-        "training_windows":   int(
-            sum(max(0, run_df.shape[0] - args.window_size + 1)
-                for _, run_df in df[df["run_id"].isin(training_run_ids)].groupby("run_id"))
-        ),
-        "max_iter":           args.max_iter,
-        "actual_iters":       int(ae.n_iter_),
-        "final_loss":         float(ae.loss_),
-        "threshold_percentile": args.ae_threshold_pct,
-        "thresholds":         {k: float(v) for k, v in thresholds.items()},
+        "backend":             "sklearn.MLPRegressor",
+        "hidden_layer_sizes":  list(ae.hidden_layer_sizes),
+        "input_features":      window_size * len(signal_cols),
+        "window_size_samples": window_size,
+        "signals":             signal_cols,
+        "training_runs":       training_run_ids,
+        "training_windows":    int(sum(
+            max(0, run_df.shape[0] - window_size + 1)
+            for _, run_df in df[df["run_id"].isin(training_run_ids)].groupby("run_id")
+        )) if training_run_ids else 0,
+        "actual_iters":        int(ae.n_iter_),
+        "final_loss":          float(ae.loss_),
+        "threshold_percentile": threshold_pct,
+        "thresholds":          {k: float(v) for k, v in thresholds.items()},
+        "loaded_from":         str(args.load_model) if args.load_model else None,
     }
     with open(ae_dir / "ae_model_info.json", "w") as f:
         json.dump(model_info, f, indent=2)
