@@ -43,15 +43,15 @@ INTERMEDIATE_DIR    = "./intermediate"
 OUTPUT_DIR          = "./output"
 SENSOR_ECU_MAP      = "./config/sensor_ecu_map.csv"   # set to None to skip
 DTC_LOG             = "./config/dtc_log.csv"          # set to None to skip
-NORMAL_RUNS         = ["normal_run_01", "normal_run_02"]  # or None to auto-detect
+NORMAL_RUNS         = ["WBA000001_normal_run_01", "WBA000001_normal_run_02"]  # or None to auto-detect
 WINDOW_SIZE         = 20          # sliding window in samples (20 = 2 s @ 100 ms)
 HIDDEN_LAYERS       = [64, 16, 64]
 MAX_ITER            = 500
 AE_THRESHOLD_PCT    = 95.0        # anomaly threshold percentile
 DTC_WINDOW_BEFORE_S = 2.0
 DTC_WINDOW_AFTER_S  = 2.0
-SAVE_MODEL          = None        # e.g. "./output/model.joblib"
-LOAD_MODEL          = None        # e.g. "./output/model.joblib" — skips training
+SAVE_MODEL          = None        # e.g. "./output/models/WBA000001/WBA000001_20260505.joblib"
+LOAD_MODEL          = None        # e.g. "./output/models/WBA000001/WBA000001_20260505.joblib"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -104,7 +104,7 @@ def infer_ecu_from_name(sensor: str) -> str:
 def build_sensor_ecu_table(columns: List[str], sensor_ecu_map: Dict[str, str]) -> pd.DataFrame:
     return pd.DataFrame(
         [{"signal": c, "ecu": sensor_ecu_map.get(c, infer_ecu_from_name(c))}
-         for c in columns if c != "run_id"]
+         for c in columns if c not in {"run_id", "vin", "issue_id", "testrun"}]
     )
 
 
@@ -119,7 +119,8 @@ def load_intermediate(intermediate_dir: Path) -> pd.DataFrame:
         raise RuntimeError(f"No parquet files in {timeseries_dir}")
     frames = [pd.read_parquet(f) for f in parquet_files]
     df = pd.concat(frames, axis=0)
-    print(f"Loaded {len(frames)} runs, {len(df)} rows, {len([c for c in df.columns if c != 'run_id'])} signals")
+    _meta = {"run_id", "vin", "issue_id", "testrun"}
+    print(f"Loaded {len(frames)} runs, {len(df)} rows, {len([c for c in df.columns if c not in _meta])} signals")
     return df
 
 
@@ -492,7 +493,8 @@ def main():
             raise ValueError(f"Model expects signals not present in data: {missing}")
         print(f"Inference runs: {df['run_id'].unique().tolist()}")
     else:
-        signal_cols   = [c for c in df.columns if c != "run_id"]
+        META_COLS     = {"run_id", "vin", "issue_id", "testrun"}
+        signal_cols   = [c for c in df.columns if c not in META_COLS]
         window_size   = WINDOW_SIZE
         threshold_pct = AE_THRESHOLD_PCT
         training_run_ids = identify_training_runs(df, NORMAL_RUNS)

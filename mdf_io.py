@@ -5,10 +5,13 @@ mdf_io.py — MDF files → parquet + channel inventory
 Edit the CONFIG section below, then run:
     python mdf_io.py
 
+Expected input structure:
+    mdf_files/<VIN>/<issue_id>/<VIN>_<run>.mf4
+
 Writes (overwriting existing files):
-  timeseries/<run_id>.parquet  — resampled, cleaned signal data (one file per MDF run)
-  channel_info.csv             — channel inventory across all runs (for inspection)
-  run_metadata.json            — MDF start times needed for DTC resolution
+  intermediate/timeseries/<run_id>.parquet  — resampled signal data with VIN/issue_id/testrun columns
+  intermediate/channel_info.csv             — channel inventory across all runs
+  intermediate/run_metadata.json            — MDF start times needed for DTC resolution
 
 Dependencies:
     - asammdf, pandas, numpy, pyarrow
@@ -30,6 +33,7 @@ from asammdf import MDF
 
 INPUT_DIR        = "./mdf_files"
 INTERMEDIATE_DIR = "./intermediate"
+SIDECAR_CSV      = "./config/run_metadata.csv"  # run_id, vin, issue_id, testrun
 SAMPLING         = "100ms"        # resampling interval: 10ms, 100ms, 1s, …
 CHANNELS_FILE    = None           # path to text file with one channel name per line
 LIST_CHANNELS    = False          # True: discover channels, write inventory, then exit
@@ -44,6 +48,15 @@ def load_channel_list(path: Optional[str]) -> Optional[List[str]]:
         return None
     with p.open("r", encoding="utf-8") as f:
         return [line.strip() for line in f if line.strip()]
+
+
+def load_sidecar(path: str) -> Dict[str, Dict[str, str]]:
+    p = Path(path)
+    if not p.exists():
+        print(f"WARNING: Sidecar CSV not found: {p} — vin/issue_id/testrun will be empty")
+        return {}
+    df = pd.read_csv(p, dtype=str).fillna("")
+    return {row["run_id"]: row.to_dict() for _, row in df.iterrows()}
 
 
 def load_mdf_to_df(
@@ -63,14 +76,15 @@ def load_mdf_to_df(
 
 
 def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    META_COLS = {"run_id", "vin", "issue_id", "testrun"}
     df = df.dropna(axis=1, how="all")
 
-    non_numeric = [c for c in df.select_dtypes(exclude=[np.number]).columns if c != "run_id"]
+    non_numeric = [c for c in df.select_dtypes(exclude=[np.number]).columns if c not in META_COLS]
     if non_numeric:
         print(f"Dropping non-numeric columns: {non_numeric}")
         df = df.drop(columns=non_numeric)
 
-    numeric_cols = [c for c in df.columns if c != "run_id"]
+    numeric_cols = [c for c in df.columns if c not in META_COLS]
     if numeric_cols:
         constant_cols = df[numeric_cols].columns[df[numeric_cols].nunique(dropna=True) <= 1].tolist()
         if constant_cols:
@@ -81,9 +95,9 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def discover_channels(input_dir: Path) -> Dict[str, List[str]]:
-    files = sorted(list(input_dir.glob("*.mf4")) + list(input_dir.glob("*.mdf")))
+    files = sorted(input_dir.rglob("*.mf4")) + sorted(input_dir.rglob("*.mdf"))
     if not files:
-        raise RuntimeError(f"No MDF files found in {input_dir}")
+        raise RuntimeError(f"No MDF files found under {input_dir}")
     result: Dict[str, List[str]] = {}
     for p in files:
         mdf = MDF(str(p))
@@ -120,23 +134,39 @@ def main():
         return
 
     channels = load_channel_list(CHANNELS_FILE)
-    files = sorted(list(input_dir.glob("*.mf4")) + list(input_dir.glob("*.mdf")))
+    sidecar  = load_sidecar(SIDECAR_CSV)
+
+    files = sorted(input_dir.rglob("*.mf4")) + sorted(input_dir.rglob("*.mdf"))
     if not files:
-        raise RuntimeError(f"No MDF files found in {input_dir}")
+        raise RuntimeError(f"No MDF files found under {input_dir}")
 
     timeseries_dir = intermediate_dir / "timeseries"
     timeseries_dir.mkdir(exist_ok=True)
+
+    META_COLS = {"run_id", "vin", "issue_id", "testrun"}
 
     mdf_start_times: Dict[str, Optional[str]] = {}
     channel_sets: Dict[str, List[str]] = {}
 
     for p in files:
+        # Derive VIN and issue_id from folder hierarchy: <VIN>/<issue_id>/<file>
+        issue_id = p.parent.name
+        vin      = p.parent.parent.name
+
         df, start_time = load_mdf_to_df(p, channels, SAMPLING)
+
+        run_id = p.stem
+        meta = sidecar.get(run_id, {})
+        df["vin"]      = meta.get("vin", vin)
+        df["issue_id"] = meta.get("issue_id", issue_id)
+        df["testrun"]  = meta.get("testrun", "")
+
         df = clean_dataframe(df)
-        df.to_parquet(timeseries_dir / f"{p.stem}.parquet")
-        mdf_start_times[p.stem] = str(start_time) if start_time is not None else None
-        channel_sets[p.stem] = [c for c in df.columns if c != "run_id"]
-        print(f"Written {p.stem} — {len(df)} rows, {len(channel_sets[p.stem])} channels")
+        df.to_parquet(timeseries_dir / f"{run_id}.parquet")
+
+        mdf_start_times[run_id] = str(start_time) if start_time is not None else None
+        channel_sets[run_id] = [c for c in df.columns if c not in META_COLS]
+        print(f"Written {run_id} — {len(df)} rows, {len(channel_sets[run_id])} channels  [vin={df['vin'].iloc[0]}, issue_id={df['issue_id'].iloc[0]}, testrun={df['testrun'].iloc[0]}]")
 
     # run_metadata.json: MDF start times consumed by ae_anomaly.py for DTC resolution
     with open(intermediate_dir / "run_metadata.json", "w") as f:
