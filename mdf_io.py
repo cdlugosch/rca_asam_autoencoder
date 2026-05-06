@@ -33,7 +33,7 @@ from asammdf import MDF
 
 INPUT_DIR        = "./mdf_files"
 INTERMEDIATE_DIR = "./intermediate"
-SIDECAR_CSV      = "./config/run_metadata.csv"  # run_id, vin, issue_id, testrun
+SIDECAR_CSV      = "./intermediate/run_metadata.csv"  # run_id, vin, issue_id, testrun
 SAMPLING         = "100ms"        # resampling interval: 10ms, 100ms, 1s, …
 CHANNELS_FILE    = None           # path to text file with one channel name per line
 LIST_CHANNELS    = False          # True: discover channels, write inventory, then exit
@@ -140,9 +140,6 @@ def main():
     if not files:
         raise RuntimeError(f"No MDF files found under {input_dir}")
 
-    timeseries_dir = intermediate_dir / "timeseries"
-    timeseries_dir.mkdir(exist_ok=True)
-
     META_COLS = {"run_id", "vin", "issue_id", "testrun"}
 
     mdf_start_times: Dict[str, Optional[str]] = {}
@@ -162,7 +159,9 @@ def main():
         df["testrun"]  = meta.get("testrun", "")
 
         df = clean_dataframe(df)
-        df.to_parquet(timeseries_dir / f"{run_id}.parquet")
+        run_dir = intermediate_dir / vin / issue_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(run_dir / f"{run_id}.parquet")
 
         mdf_start_times[run_id] = str(start_time) if start_time is not None else None
         channel_sets[run_id] = [c for c in df.columns if c not in META_COLS]

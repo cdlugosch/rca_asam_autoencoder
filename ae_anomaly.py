@@ -42,7 +42,7 @@ from sklearn.preprocessing import StandardScaler
 INTERMEDIATE_DIR    = "./intermediate"
 OUTPUT_DIR          = "./output"
 SENSOR_ECU_MAP      = "./config/sensor_ecu_map.csv"   # set to None to skip
-DTC_LOG             = "./config/dtc_log.csv"          # set to None to skip
+DTC_LOG             = None    # e.g. "./intermediate/WBA000001/iss1234567ABC/dtc_log.csv"
 NORMAL_RUNS         = ["WBA000001_normal_run_01", "WBA000001_normal_run_02"]  # or None to auto-detect
 WINDOW_SIZE         = 20          # sliding window in samples (20 = 2 s @ 100 ms)
 HIDDEN_LAYERS       = [64, 16, 64]
@@ -113,10 +113,9 @@ def build_sensor_ecu_table(columns: List[str], sensor_ecu_map: Dict[str, str]) -
 # ─────────────────────────────────────────────────────────────────────────────
 
 def load_intermediate(intermediate_dir: Path) -> pd.DataFrame:
-    timeseries_dir = intermediate_dir / "timeseries"
-    parquet_files = sorted(timeseries_dir.glob("*.parquet"))
+    parquet_files = sorted(intermediate_dir.rglob("*.parquet"))
     if not parquet_files:
-        raise RuntimeError(f"No parquet files in {timeseries_dir}")
+        raise RuntimeError(f"No parquet files found under {intermediate_dir}")
     frames = [pd.read_parquet(f) for f in parquet_files]
     df = pd.concat(frames, axis=0)
     _meta = {"run_id", "vin", "issue_id", "testrun"}

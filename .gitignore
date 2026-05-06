@@ -5,7 +5,7 @@ config/
 .venv/
 
 # Runtime-generated intermediate files
-intermediate/timeseries/
+intermediate/**/*.parquet
 intermediate/run_metadata.json
 intermediate/channel_info.csv
 *.tar.gz
