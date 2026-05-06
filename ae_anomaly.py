@@ -24,6 +24,7 @@ Dependencies:
 """
 
 import json
+import os
 
 from datetime import date
 from pathlib import Path
@@ -34,6 +35,8 @@ import pandas as pd
 import joblib
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
+
+import adhoc_data_processing as adp
 
 
 # ─────────────────────────────────────────────────────────────────────────────
