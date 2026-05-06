@@ -562,18 +562,22 @@ def main():
         run_dir = results_root / vin / issue_id / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
 
-        run_errors[["run_id", "time_s", "signal", "ae_error",
-                    "is_anomaly", "score_normalized"]].to_csv(
-            run_dir / "ae_signal_errors.csv", index=False)
+        meta_cols = {"vin": vin, "issue_id": issue_id, "run_id": run_id}
 
-        aggregate_ae_signal_summary(run_errors).to_csv(
-            run_dir / "ae_anomaly_summary.csv", index=False)
+        run_errors.assign(**meta_cols)[
+            ["vin", "issue_id", "run_id", "time_s", "signal", "ae_error", "is_anomaly", "score_normalized"]
+        ].to_csv(run_dir / "ae_signal_errors.csv", index=False)
 
-        aggregate_ae_ecu_relevance(run_errors, sensor_ecu_df).to_csv(
-            run_dir / "ae_ecu_relevance.csv", index=False)
+        aggregate_ae_signal_summary(run_errors).assign(**meta_cols)[
+            ["vin", "issue_id", "run_id", "signal", "anomaly_count", "ae_error_sum", "score_normalized_sum"]
+        ].to_csv(run_dir / "ae_anomaly_summary.csv", index=False)
+
+        aggregate_ae_ecu_relevance(run_errors, sensor_ecu_df).assign(**meta_cols)[
+            ["vin", "issue_id", "run_id", "ecu", "anomaly_count", "ae_error_sum", "score_normalized_sum"]
+        ].to_csv(run_dir / "ae_ecu_relevance.csv", index=False)
 
         if not ae_dtc.empty:
-            run_dtc = ae_dtc[ae_dtc["run_id"] == run_id]
+            run_dtc = ae_dtc[ae_dtc["run_id"] == run_id].assign(**meta_cols)
             if not run_dtc.empty:
                 run_dtc.to_csv(run_dir / "ae_dtc_candidates.csv", index=False)
 
