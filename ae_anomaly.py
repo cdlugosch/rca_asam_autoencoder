@@ -25,6 +25,7 @@ Dependencies:
 
 import json
 
+from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -43,15 +44,14 @@ INTERMEDIATE_DIR    = "./intermediate"
 OUTPUT_DIR          = "./output"
 SENSOR_ECU_MAP      = "./config/sensor_ecu_map.csv"   # set to None to skip
 DTC_LOG             = None    # e.g. "./intermediate/WBA000001/iss1234567ABC/dtc_log.csv"
-NORMAL_RUNS         = ["WBA000001_normal_run_01", "WBA000001_normal_run_02"]  # or None to auto-detect
+MODEL_MODE          = "GENERATE"  # "GENERATE": train on issue_id=none runs, save model
+                                  # "LOAD":     load most recent model for this VIN
 WINDOW_SIZE         = 20          # sliding window in samples (20 = 2 s @ 100 ms)
 HIDDEN_LAYERS       = [64, 16, 64]
 MAX_ITER            = 500
 AE_THRESHOLD_PCT    = 95.0        # anomaly threshold percentile
 DTC_WINDOW_BEFORE_S = 2.0
 DTC_WINDOW_AFTER_S  = 2.0
-SAVE_MODEL          = None        # e.g. "./output/models/WBA000001/WBA000001_20260506.joblib"
-LOAD_MODEL          = None        # e.g. "./output/models/WBA000001/WBA000001_20260506.joblib"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -121,24 +121,6 @@ def load_intermediate(intermediate_dir: Path) -> pd.DataFrame:
     _meta = {"run_id", "vin", "issue_id", "testrun"}
     print(f"Loaded {len(frames)} runs, {len(df)} rows, {len([c for c in df.columns if c not in _meta])} signals")
     return df
-
-
-def identify_training_runs(df: pd.DataFrame, normal_runs: Optional[List[str]]) -> List[str]:
-    all_runs = df["run_id"].unique().tolist()
-    if normal_runs:
-        missing = [r for r in normal_runs if r not in all_runs]
-        if missing:
-            raise ValueError(f"Specified normal runs not found in data: {missing}")
-        return normal_runs
-    keywords = ("normal", "ref", "baseline")
-    detected = [r for r in all_runs if any(kw in r.lower() for kw in keywords)]
-    if not detected:
-        raise RuntimeError(
-            "Could not auto-detect training runs. "
-            "Set NORMAL_RUNS explicitly in the config."
-        )
-    print(f"Auto-detected training runs: {detected}")
-    return detected
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -481,12 +463,18 @@ def main():
         .to_dict("index")
     )
 
+    vin        = df["vin"].mode()[0]
+    models_dir = Path(OUTPUT_DIR) / "models" / vin
+
     sensor_ecu_map = load_sensor_ecu_map(SENSOR_ECU_MAP)
     dtc_df         = load_dtc_log(DTC_LOG)
 
     # ── Train or load model ──────────────────────────────────────────────────
-    if LOAD_MODEL:
-        bundle        = load_model_bundle(Path(LOAD_MODEL))
+    if MODEL_MODE == "LOAD":
+        candidates = sorted(models_dir.glob(f"{vin}_*.joblib"))
+        if not candidates:
+            raise RuntimeError(f"No model found for VIN {vin} in {models_dir}")
+        bundle        = load_model_bundle(candidates[-1])
         ae            = bundle["ae"]
         scaler        = bundle["scaler"]
         thresholds    = bundle["thresholds"]
@@ -498,12 +486,14 @@ def main():
         if missing:
             raise ValueError(f"Model expects signals not present in data: {missing}")
         print(f"Inference runs: {df['run_id'].unique().tolist()}")
-    else:
-        META_COLS     = {"run_id", "vin", "issue_id", "testrun"}
-        signal_cols   = [c for c in df.columns if c not in META_COLS]
-        window_size   = WINDOW_SIZE
-        threshold_pct = AE_THRESHOLD_PCT
-        training_run_ids = identify_training_runs(df, NORMAL_RUNS)
+    elif MODEL_MODE == "GENERATE":
+        META_COLS        = {"run_id", "vin", "issue_id", "testrun"}
+        signal_cols      = [c for c in df.columns if c not in META_COLS]
+        window_size      = WINDOW_SIZE
+        threshold_pct    = AE_THRESHOLD_PCT
+        training_run_ids = df[df["issue_id"] == "none"]["run_id"].unique().tolist()
+        if not training_run_ids:
+            raise RuntimeError("No runs with issue_id='none' found — cannot generate model.")
         print(f"Training runs : {training_run_ids}")
         print(f"Inference runs: {df['run_id'].unique().tolist()}")
         ae, scaler = train_autoencoder(
@@ -514,11 +504,11 @@ def main():
         )
         error_df   = compute_all_errors(df, signal_cols, ae, scaler, window_size)
         thresholds = compute_thresholds(error_df, training_run_ids, threshold_pct)
-        if SAVE_MODEL:
-            save_model_bundle(
-                Path(SAVE_MODEL), ae, scaler, thresholds,
-                signal_cols, window_size, threshold_pct,
-            )
+        models_dir.mkdir(parents=True, exist_ok=True)
+        model_path = models_dir / f"{vin}_{date.today().strftime('%Y%m%d')}.joblib"
+        save_model_bundle(model_path, ae, scaler, thresholds, signal_cols, window_size, threshold_pct)
+    else:
+        raise ValueError(f"MODEL_MODE must be 'GENERATE' or 'LOAD', got: {MODEL_MODE!r}")
 
     sensor_ecu_df = build_sensor_ecu_table(signal_cols, sensor_ecu_map)
 
@@ -558,7 +548,7 @@ def main():
         "final_loss":          float(ae.loss_),
         "threshold_percentile": threshold_pct,
         "thresholds":          {k: float(v) for k, v in thresholds.items()},
-        "loaded_from":         str(LOAD_MODEL) if LOAD_MODEL else None,
+        "loaded_from":         str(candidates[-1]) if MODEL_MODE == "LOAD" else None,
     }
 
     # ── Write per-run outputs ─────────────────────────────────────────────────
