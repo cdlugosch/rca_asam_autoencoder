@@ -28,7 +28,7 @@ import os
 
 from datetime import date
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -40,15 +40,10 @@ import adhoc_data_processing as adp
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Config — edit these values before running
+# Config — AE algorithm parameters (paths and MODEL_MODE come from manifests)
 # ─────────────────────────────────────────────────────────────────────────────
 
-INTERMEDIATE_DIR    = "./intermediate"
-OUTPUT_DIR          = "./output"
-SENSOR_ECU_MAP      = "./config/sensor_ecu_map.csv"   # set to None to skip
 DTC_LOG             = None    # e.g. "./intermediate/WBA000001/iss1234567ABC/dtc_log.csv"
-MODEL_MODE          = "GENERATE"  # "GENERATE": train on issue_id=none runs, save model
-                                  # "LOAD":     load most recent model for this VIN
 WINDOW_SIZE         = 20          # sliding window in samples (20 = 2 s @ 100 ms)
 HIDDEN_LAYERS       = [64, 16, 64]
 MAX_ITER            = 500
@@ -450,10 +445,36 @@ def load_model_bundle(path: Path) -> dict:
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
-def main():
+def main(input_manifest: List[Dict[str, Any]], output_manifest: List[Dict[str, Any]], pipeline_state: str, job_id: str):
+    # ── Config from manifests ─────────────────────────────────────────────────
+    INTERMEDIATE_DIR = input_manifest[0]['local_path'] + "/" + input_manifest[0]['prefix'] + "intermediate/"
+    OUTPUT_DIR       = output_manifest[0]['local_path'] + "/output/"
+    SENSOR_ECU_MAP   = input_manifest[0]['local_path'] + "/" + input_manifest[0]['prefix'] + "config/sensor_ecu_map.csv"
+    MODEL_MODE       = input_manifest[0].get('model_mode', 'GENERATE')
+
+    if len(pipeline_state) == 0:
+        adp.set_pipeline_state("iteration-0")
+    else:
+        new_state = int(pipeline_state.split('-')[-1]) + 1
+        adp.set_pipeline_state(f"iteration-{new_state}")
+
     intermediate_dir = Path(INTERMEDIATE_DIR)
     output_dir       = Path(OUTPUT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # ── Debug: list all input files and resolved paths ────────────────────────
+    input_source_dir = input_manifest[0]['local_path']
+    with open(output_dir / f"debug_{job_id}", "w") as f:
+        for root, dirs, files in os.walk(input_source_dir):
+            for filename in files:
+                full_path = os.path.join(root, filename)
+                f.write(full_path + "\n")
+                print(full_path)
+        f.write("-------- runtime folders ------\n")
+        f.write(INTERMEDIATE_DIR + "\n")
+        f.write(OUTPUT_DIR + "\n")
+        f.write(SENSOR_ECU_MAP + "\n")
+        f.write(str(DTC_LOG) + "\n")
 
     # ── Load data ────────────────────────────────────────────────────────────
     df = load_intermediate(intermediate_dir)
@@ -593,5 +614,8 @@ def main():
     print("Done.")
 
 
-if __name__ == "__main__":
-    main()
+# ─────────────────────────────────────────────────────────────────────────────
+# Entry point — adp.run calls main with manifests, pipeline_state, job_id
+# ─────────────────────────────────────────────────────────────────────────────
+
+plp_df = adp.run(main, globals(), False)
