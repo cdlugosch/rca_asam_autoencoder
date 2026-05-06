@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RCA Autoencoder Pipeline — Technical Overview</title>
+<style>
+  :root {
+    --blue-dark:   #0d1b2a;
+    --blue-mid:    #1b3a5c;
+    --blue-light:  #2e6da4;
+    --accent:      #00b4d8;
+    --green:       #2dc653;
+    --orange:      #f4a261;
+    --red:         #e63946;
+    --yellow:      #ffd166;
+    --gray-light:  #e8edf2;
+    --gray-mid:    #b0bec5;
+    --white:       #ffffff;
+    --text-dark:   #1a1a2e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f0f4f8;
+    color: var(--text-dark);
+  }
+
+  /* ── Page header ─────────────────────────────────────── */
+  .page-header {
+    background: linear-gradient(135deg, var(--blue-dark) 0%, var(--blue-mid) 60%, var(--blue-light) 100%);
+    color: white;
+    padding: 36px 48px 28px;
+    display: flex; align-items: center; gap: 24px;
+  }
+  .page-header .logo {
+    width: 64px; height: 64px;
+    background: var(--accent);
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; flex-shrink: 0;
+  }
+  .page-header h1 { font-size: 26px; font-weight: 700; letter-spacing: 0.5px; }
+  .page-header p  { font-size: 13px; color: var(--gray-mid); margin-top: 4px; }
+  .tag {
+    display: inline-block; padding: 3px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
+    margin-right: 6px; margin-top: 6px;
+  }
+  .tag-blue   { background: rgba(0,180,216,.2); color: var(--accent); border: 1px solid var(--accent); }
+  .tag-green  { background: rgba(45,198,83,.2);  color: var(--green);  border: 1px solid var(--green); }
+  .tag-orange { background: rgba(244,162,97,.2); color: var(--orange); border: 1px solid var(--orange); }
+
+  /* ── Section wrapper ──────────────────────────────────── */
+  .section {
+    max-width: 1280px; margin: 32px auto; padding: 0 24px;
+  }
+  .section-title {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 24px;
+  }
+  .section-title .num {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: white; flex-shrink: 0;
+  }
+  .section-title h2 { font-size: 20px; font-weight: 700; }
+  .section-title p  { font-size: 13px; color: #555; margin-top: 2px; }
+
+  /* ── Flow row ─────────────────────────────────────────── */
+  .flow-row {
+    display: flex; align-items: stretch; gap: 0;
+    background: white; border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,.08);
+    overflow: hidden; margin-bottom: 20px;
+  }
+  .flow-step {
+    flex: 1; padding: 24px 20px; position: relative;
+    border-right: 1px solid var(--gray-light);
+  }
+  .flow-step:last-child { border-right: none; }
+  .flow-step .step-num {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+  .flow-step .icon { font-size: 28px; margin-bottom: 10px; }
+  .flow-step h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  .flow-step p  { font-size: 12px; color: #555; line-height: 1.6; }
+  .flow-step .arrow {
+    position: absolute; right: -14px; top: 50%;
+    transform: translateY(-50%);
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: white; z-index: 2;
+  }
+  .flow-step .code-pill {
+    display: inline-block; background: #f0f4f8;
+    border: 1px solid #dde2e8; border-radius: 6px;
+    font-family: 'Courier New', monospace; font-size: 10.5px;
+    padding: 2px 7px; margin: 2px 2px 0 0; color: #333;
+  }
+
+  /* ── Step colours ─────────────────────────────────────── */
+  .step-trigger  { border-top: 4px solid var(--yellow); }
+  .step-input    { border-top: 4px solid var(--accent); }
+  .step-process  { border-top: 4px solid var(--blue-light); }
+  .step-meta     { border-top: 4px solid var(--orange); }
+  .step-output   { border-top: 4px solid var(--green); }
+  .step-model    { border-top: 4px solid #9b5de5; }
+  .step-infer    { border-top: 4px solid var(--red); }
+
+  .step-trigger  .step-num { color: var(--yellow); }
+  .step-input    .step-num { color: var(--accent); }
+  .step-process  .step-num { color: var(--blue-light); }
+  .step-meta     .step-num { color: var(--orange); }
+  .step-output   .step-num { color: var(--green); }
+  .step-model    .step-num { color: #9b5de5; }
+  .step-infer    .step-num { color: var(--red); }
+
+  .step-trigger  .arrow { background: var(--yellow); }
+  .step-input    .arrow { background: var(--accent); }
+  .step-process  .arrow { background: var(--blue-light); }
+  .step-meta     .arrow { background: var(--orange); }
+  .step-model    .arrow { background: #9b5de5; }
+
+  /* ── Two-column detail rows ───────────────────────────── */
+  .detail-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    margin-bottom: 20px;
+  }
+  .detail-card {
+    background: white; border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.07);
+    padding: 20px 22px;
+  }
+  .detail-card h4 {
+    font-size: 13px; font-weight: 700; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .detail-card .dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .detail-card ul { list-style: none; }
+  .detail-card ul li {
+    font-size: 12px; color: #444; padding: 5px 0;
+    border-bottom: 1px solid #f0f0f0; display: flex; align-items: flex-start; gap: 8px;
+  }
+  .detail-card ul li:last-child { border-bottom: none; }
+  .detail-card ul li .li-icon { flex-shrink: 0; font-size: 13px; }
+
+  /* ── Branch decision ──────────────────────────────────── */
+  .branch-wrap {
+    background: white; border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,.08);
+    padding: 28px 28px 20px; margin-bottom: 20px;
+  }
+  .branch-header {
+    text-align: center; margin-bottom: 24px;
+  }
+  .branch-header .diamond {
+    width: 80px; height: 80px;
+    background: linear-gradient(135deg, var(--blue-mid), var(--blue-light));
+    transform: rotate(45deg);
+    margin: 0 auto 14px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; box-shadow: 0 4px 16px rgba(46,109,164,.3);
+  }
+  .branch-header .diamond span {
+    transform: rotate(-45deg); color: white;
+    font-size: 11px; font-weight: 700; text-align: center; line-height: 1.3;
+  }
+  .branch-header p { font-size: 13px; color: #555; }
+  .branch-cols {
+    display: grid; grid-template-columns: 1fr 40px 1fr; gap: 0; align-items: start;
+  }
+  .branch-col {
+    border-radius: 12px; padding: 18px 20px;
+  }
+  .branch-col.generate { background: rgba(45,198,83,.07); border: 2px solid var(--green); }
+  .branch-col.load     { background: rgba(155,93,229,.07); border: 2px solid #9b5de5; }
+  .branch-col h4 {
+    font-size: 13px; font-weight: 700; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .branch-col.generate h4 { color: var(--green); }
+  .branch-col.load     h4 { color: #9b5de5; }
+  .branch-col ul { list-style: none; }
+  .branch-col ul li {
+    font-size: 12px; color: #444; padding: 4px 0;
+    display: flex; align-items: flex-start; gap: 6px;
+  }
+  .branch-col ul li::before { content: "→"; flex-shrink: 0; color: #aaa; }
+  .branch-divider {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; color: #aaa; font-size: 11px;
+    font-weight: 700; gap: 6px; padding-top: 40px;
+  }
+  .branch-divider .or {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--gray-light); border: 2px solid #ccc;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #666;
+  }
+
+  /* ── Folder tree ──────────────────────────────────────── */
+  .folder-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;
+    margin-bottom: 20px;
+  }
+  .folder-card {
+    background: white; border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.07);
+    padding: 18px 20px; font-family: 'Courier New', monospace;
+    font-size: 11.5px;
+  }
+  .folder-card h5 {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 12px; font-weight: 700; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .folder-card .tree-line { color: #888; line-height: 1.9; }
+  .folder-card .tree-line .dir  { color: var(--blue-light); font-weight: 600; }
+  .folder-card .tree-line .file { color: var(--text-dark); }
+  .folder-card .tree-line .meta { color: var(--orange); }
+  .folder-card .tree-line .out  { color: var(--green); }
+
+  /* ── Threshold / signal table ─────────────────────────── */
+  .threshold-box {
+    background: white; border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,.08);
+    padding: 24px 28px; margin-bottom: 20px;
+  }
+  .threshold-box h4 { font-size: 14px; font-weight: 700; margin-bottom: 16px; }
+  .signal-bars { display: flex; flex-direction: column; gap: 10px; }
+  .signal-bar { display: flex; align-items: center; gap: 12px; }
+  .signal-bar .sig-name { font-size: 12px; font-weight: 600; width: 140px; flex-shrink: 0; }
+  .signal-bar .bar-track {
+    flex: 1; height: 18px; background: #f0f4f8;
+    border-radius: 9px; overflow: hidden; position: relative;
+  }
+  .signal-bar .bar-fill {
+    height: 100%; border-radius: 9px;
+    transition: width 0.3s;
+  }
+  .signal-bar .bar-val { font-size: 11px; color: #666; width: 60px; text-align: right; }
+  .anomaly-pct {
+    position: absolute; right: 6px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px; font-weight: 700; color: white;
+  }
+
+  /* ── Output summary row ───────────────────────────────── */
+  .output-summary {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+    margin-bottom: 32px;
+  }
+  .out-card {
+    background: white; border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.07);
+    padding: 18px 16px; text-align: center;
+    border-top: 4px solid var(--green);
+  }
+  .out-card .out-icon { font-size: 24px; margin-bottom: 8px; }
+  .out-card .out-name { font-size: 11px; font-weight: 700; color: #333; margin-bottom: 4px; }
+  .out-card .out-cols { font-size: 10.5px; color: #777; line-height: 1.7; font-family: monospace; }
+
+  /* ── Footer ───────────────────────────────────────────── */
+  .page-footer {
+    background: var(--blue-dark); color: var(--gray-mid);
+    text-align: center; padding: 18px; font-size: 12px; margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ══════════════════════════════════════════════════ -->
+<div class="page-header">
+  <div class="logo">🚗</div>
+  <div>
+    <h1>RCA Autoencoder Pipeline — Technical Reference</h1>
+    <p>Anomaly detection for vehicle diagnostics · VIN-based data flow · MDF → Parquet → AE inference</p>
+    <span class="tag tag-blue">mdf_io.py</span>
+    <span class="tag tag-blue">ae_anomaly.py</span>
+    <span class="tag tag-green">VIN-aware</span>
+    <span class="tag tag-orange">Issue / Test-Run triggered</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     PART 1 — MDF TRANSFORMATION
+═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">
+    <div class="num" style="background:var(--accent)">1</div>
+    <div>
+      <h2>MDF Transformation — <code>mdf_io.py</code></h2>
+      <p>Converts raw automotive measurement files into structured, metadata-enriched parquet files for downstream processing</p>
+    </div>
+  </div>
+
+  <!-- flow -->
+  <div class="flow-row">
+
+    <div class="flow-step step-trigger">
+      <div class="step-num">TRIGGER</div>
+      <div class="icon">⚡</div>
+      <h3>Data Dump Event</h3>
+      <p>Measurement data is captured when a specific event occurs on the vehicle:</p>
+      <div style="margin-top:10px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:16px">🔴</span>
+          <span style="font-size:12px"><strong>Issue trigger</strong> — DTC fired, fault detected, technician initiated</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:16px">🟡</span>
+          <span style="font-size:12px"><strong>Test-run trigger</strong> — Scheduled measurement campaign, baseline capture</span>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+    </div>
+
+    <div class="flow-step step-input">
+      <div class="step-num">INPUT</div>
+      <div class="icon">📂</div>
+      <h3>MF4 / MDF Source Files</h3>
+      <p>Raw ASAM MDF4 files placed into a VIN-structured folder hierarchy:</p>
+      <div style="margin-top:10px;font-family:monospace;font-size:11px;line-height:2;color:#333">
+        <div><span style="color:var(--blue-light)">mdf_files/</span></div>
+        <div>&nbsp;└── <span style="color:var(--blue-light)">WBA000001/</span> &nbsp;<em style="color:#aaa">(VIN)</em></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;├── <span style="color:var(--red)">iss1234567ABC/</span> &nbsp;<em style="color:#aaa">(issue)</em></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── <span style="color:#333">WBA000001_fault_run_01.mf4</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;└── <span style="color:var(--green)">none/</span> &nbsp;<em style="color:#aaa">(test-run)</em></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── <span style="color:#333">WBA000001_normal_run_01.mf4</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── <span style="color:#333">WBA000001_normal_run_02.mf4</span></div>
+      </div>
+      <div class="arrow">→</div>
+    </div>
+
+    <div class="flow-step step-meta">
+      <div class="step-num">SIDECAR</div>
+      <div class="icon">📋</div>
+      <h3>run_metadata.csv</h3>
+      <p>Maps every run_id to its full context. Provided as part of the handover package:</p>
+      <div style="margin-top:10px;font-family:monospace;font-size:11px;background:#f8f9fa;padding:10px;border-radius:6px;line-height:1.9">
+        <div style="color:#888">run_id, vin, issue_id, testrun</div>
+        <div>WBA..._fault_01, WBA000001, <span style="color:var(--red)">iss1234567ABC</span>, TR-001</div>
+        <div>WBA..._normal_01, WBA000001, <span style="color:var(--green)">none</span>, TR-002</div>
+        <div>WBA..._normal_02, WBA000001, <span style="color:var(--green)">none</span>, TR-003</div>
+      </div>
+      <p style="margin-top:8px;font-size:11px">VIN + issue_id are also derived from the folder path as a fallback.</p>
+      <div class="arrow">→</div>
+    </div>
+
+    <div class="flow-step step-process">
+      <div class="step-num">PROCESSING</div>
+      <div class="icon">⚙️</div>
+      <h3>asammdf Parsing &amp; Cleaning</h3>
+      <p>Per MDF file:</p>
+      <div style="margin-top:8px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:12px">
+          <span>🔹</span><span><strong>Parse</strong> all channels via asammdf</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:12px">
+          <span>🔹</span><span><strong>Resample</strong> to 100 ms grid</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:12px">
+          <span>🔹</span><span><strong>Drop</strong> all-NaN &amp; constant columns</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:12px">
+          <span>🔹</span><span><strong>Drop</strong> non-numeric channels</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+          <span>🔹</span><span><strong>Tag</strong> vin / issue_id / testrun columns</span>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+    </div>
+
+    <div class="flow-step step-output">
+      <div class="step-num">OUTPUT</div>
+      <div class="icon">💾</div>
+      <h3>Intermediate Handover</h3>
+      <p>Parquet files written into the same VIN/issue hierarchy, ready for AE processing or external system pickup:</p>
+      <div style="margin-top:10px;font-family:monospace;font-size:11px;line-height:2;color:#333">
+        <div><span style="color:var(--blue-light)">intermediate/</span></div>
+        <div>&nbsp;├── <span style="color:var(--orange)">run_metadata.csv</span></div>
+        <div>&nbsp;└── <span style="color:var(--blue-light)">WBA000001/</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;├── <span style="color:var(--red)">iss1234567ABC/</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── <span style="color:var(--green)">fault_run_01.parquet</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;└── <span style="color:var(--green)">none/</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── <span style="color:var(--green)">normal_run_0{1,2}.parquet</span></div>
+      </div>
+    </div>
+
+  </div><!-- /flow-row -->
+
+  <!-- detail cards -->
+  <div class="detail-grid">
+    <div class="detail-card">
+      <h4><div class="dot" style="background:var(--accent)"></div>Parquet Schema — Embedded Metadata Columns</h4>
+      <ul>
+        <li><span class="li-icon">🔑</span><div><strong>run_id</strong> &nbsp;— Unique run identifier (stem of MF4 filename)<br><span style="font-size:11px;color:#888">e.g. WBA000001_fault_run_01</span></div></li>
+        <li><span class="li-icon">🚗</span><div><strong>vin</strong> &nbsp;— Vehicle identification number<br><span style="font-size:11px;color:#888">From folder hierarchy or sidecar CSV</span></div></li>
+        <li><span class="li-icon">🔴</span><div><strong>issue_id</strong> &nbsp;— Issue tracker ID or <code>none</code><br><span style="font-size:11px;color:#888">Prefix "iss" → from issue management system</span></div></li>
+        <li><span class="li-icon">🧪</span><div><strong>testrun</strong> &nbsp;— Test campaign identifier<br><span style="font-size:11px;color:#888">From sidecar CSV, e.g. TR-2026-001</span></div></li>
+        <li><span class="li-icon">📊</span><div><strong>signal columns</strong> &nbsp;— One column per physical channel<br><span style="font-size:11px;color:#888">Resampled at 100 ms, numeric, non-constant only</span></div></li>
+      </ul>
+    </div>
+    <div class="detail-card">
+      <h4><div class="dot" style="background:var(--orange)"></div>Data Quality &amp; Cleaning Rules</h4>
+      <ul>
+        <li><span class="li-icon">🗑️</span><div><strong>All-NaN columns dropped</strong><br><span style="font-size:11px;color:#888">Channels that never produced a valid reading</span></div></li>
+        <li><span class="li-icon">🔢</span><div><strong>Non-numeric columns dropped</strong><br><span style="font-size:11px;color:#888">Strings, labels, status enums excluded</span></div></li>
+        <li><span class="li-icon">📏</span><div><strong>Constant columns dropped</strong><br><span style="font-size:11px;color:#888">Zero-variance signals carry no diagnostic value</span></div></li>
+        <li><span class="li-icon">⏱️</span><div><strong>Resampled to 100 ms uniform grid</strong><br><span style="font-size:11px;color:#888">Enables aligned window-based processing downstream</span></div></li>
+        <li><span class="li-icon">🏷️</span><div><strong>Metadata columns protected</strong><br><span style="font-size:11px;color:#888">run_id, vin, issue_id, testrun exempt from cleaning</span></div></li>
+      </ul>
+    </div>
+  </div>
+
+</div><!-- /section 1 -->
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     PART 2 — AE ANOMALY DETECTION
+═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">
+    <div class="num" style="background:var(--red)">2</div>
+    <div>
+      <h2>AE Anomaly Detection — <code>ae_anomaly.py</code></h2>
+      <p>Windowed MLP autoencoder trained on normal (issue_id=none) runs · Per-signal reconstruction error thresholding · VIN-aware model management</p>
+    </div>
+  </div>
+
+  <!-- input step -->
+  <div class="flow-row">
+    <div class="flow-step step-input" style="max-width:260px">
+      <div class="step-num">INPUT</div>
+      <div class="icon">📦</div>
+      <h3>Load All Parquets</h3>
+      <p>Recursively scans <code>intermediate/</code> for all <code>*.parquet</code> files. Concatenates into a single DataFrame.</p>
+      <p style="margin-top:8px;font-size:11px;color:#666">Metadata cols (vin, issue_id, testrun) are preserved but excluded from signal processing.</p>
+      <div class="arrow">→</div>
+    </div>
+    <div class="flow-step step-process" style="flex:3">
+      <div class="step-num">DATA SPLIT</div>
+      <div class="icon">✂️</div>
+      <h3>Automatic Training / Inference Split by issue_id</h3>
+      <p>No manual run list required. The issue_id column drives the split automatically:</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+        <div style="background:rgba(45,198,83,.08);border:1px solid var(--green);border-radius:8px;padding:12px">
+          <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:6px">🟢 Training runs</div>
+          <div style="font-size:12px;color:#444">All rows where <code>issue_id == "none"</code><br>→ Baseline / normal behaviour only<br>→ Cannot be contaminated by fault data</div>
+        </div>
+        <div style="background:rgba(230,57,70,.08);border:1px solid var(--red);border-radius:8px;padding:12px">
+          <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:6px">🔴 Inference runs</div>
+          <div style="font-size:12px;color:#444">All loaded runs (including training)<br>→ Anomaly scores computed for every run<br>→ Normal runs serve as validation baseline</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODEL_MODE branch -->
+  <div class="branch-wrap">
+    <div class="branch-header">
+      <div class="diamond"><span>MODEL<br>MODE</span></div>
+      <p>Configured via <code>MODEL_MODE</code> in <code>INPUT_MANIFEST</code> — single switch, no path management required</p>
+    </div>
+    <div class="branch-cols">
+      <div class="branch-col generate">
+        <h4>🟢 GENERATE — Train &amp; Save</h4>
+        <ul>
+          <li>Filter training windows from <code>issue_id = "none"</code> runs</li>
+          <li>Create sliding windows of size W=20 (2 s @ 100 ms)</li>
+          <li>Flatten: W × n_signals → feature vector</li>
+          <li>Fit <code>StandardScaler</code> on training windows</li>
+          <li>Train MLP autoencoder (X→X reconstruction) arch: [64, 16, 64]</li>
+          <li>Compute per-signal p95 reconstruction error thresholds on training data</li>
+          <li>Save model bundle to <code>output/models/&lt;VIN&gt;/&lt;VIN&gt;_&lt;YYYYMMDD&gt;.joblib</code></li>
+        </ul>
+      </div>
+      <div class="branch-divider">
+        <div class="or">OR</div>
+      </div>
+      <div class="branch-col load">
+        <h4>🟣 LOAD — Reuse Existing Model</h4>
+        <ul>
+          <li>Derive VIN from loaded data (<code>df["vin"].mode()</code>)</li>
+          <li>Scan <code>output/models/&lt;VIN&gt;/</code> for <code>&lt;VIN&gt;_*.joblib</code></li>
+          <li>Auto-select most recent by YYYYMMDD filename sort</li>
+          <li>Restore ae, scaler, thresholds, signal_cols, window_size</li>
+          <li>Validate that all model signals are present in new data</li>
+          <li>No retraining — inference only on new fault data</li>
+          <li>Model can be applied to any run from the same VIN</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- inference steps -->
+  <div class="flow-row">
+    <div class="flow-step step-process">
+      <div class="step-num">WINDOWING</div>
+      <div class="icon">🪟</div>
+      <h3>Sliding Window Extraction</h3>
+      <p>Per run, extract overlapping windows:</p>
+      <div style="margin-top:8px;text-align:center">
+        <svg width="200" height="60" viewBox="0 0 200 60">
+          <rect x="5" y="20" width="190" height="20" rx="4" fill="#e8edf2"/>
+          <rect x="5" y="20" width="50" height="20" rx="4" fill="#2e6da4" opacity="0.8"/>
+          <rect x="25" y="20" width="50" height="20" rx="4" fill="#2e6da4" opacity="0.6"/>
+          <rect x="45" y="20" width="50" height="20" rx="4" fill="#2e6da4" opacity="0.4"/>
+          <text x="5" y="55" font-size="9" fill="#666">t=0</text>
+          <text x="150" y="55" font-size="9" fill="#666">t=600</text>
+          <text x="80" y="15" font-size="9" fill="#2e6da4" text-anchor="middle">W=20 samples</text>
+        </svg>
+      </div>
+      <p style="font-size:11px;color:#666;margin-top:4px">Step=1 sample, W=20 → 581 windows per 600-row run</p>
+      <div class="arrow">→</div>
+    </div>
+    <div class="flow-step step-process">
+      <div class="step-num">NORMALISE</div>
+      <div class="icon">📐</div>
+      <h3>StandardScaler Transform</h3>
+      <p>Each window flattened to shape <code>(W × n_signals,)</code> and z-score normalised using the scaler fitted on training data only.</p>
+      <p style="margin-top:8px;font-size:11px;color:#666">Ensures consistent signal scale across all runs regardless of absolute sensor ranges.</p>
+      <div class="arrow">→</div>
+    </div>
+    <div class="flow-step step-infer">
+      <div class="step-num">RECONSTRUCT</div>
+      <div class="icon">🧠</div>
+      <h3>Autoencoder Inference</h3>
+      <p>MLP (X→X) reconstructs each window. Reconstruction error = MSE per signal per window:</p>
+      <div style="font-family:monospace;font-size:11px;background:#fff5f5;border:1px solid #fcc;border-radius:6px;padding:8px;margin-top:8px">
+        error[t, signal] = (x[t,s] − x̂[t,s])²
+      </div>
+      <p style="margin-top:8px;font-size:11px;color:#666">High error = signal behaves differently from the learned normal baseline</p>
+      <div class="arrow">→</div>
+    </div>
+    <div class="flow-step step-infer">
+      <div class="step-num">THRESHOLD</div>
+      <div class="icon">🎯</div>
+      <h3>Per-Signal p95 Thresholds</h3>
+      <p>Each signal has its own anomaly threshold = p95 of its training reconstruction error.</p>
+      <p style="margin-top:8px;font-size:11px;color:#666">Adapts to different signal variabilities. <code>is_anomaly = error &gt; threshold[signal]</code></p>
+      <p style="margin-top:6px;font-size:11px;color:#666"><code>score_normalized = error / threshold</code> → comparable across signals</p>
+      <div class="arrow">→</div>
+    </div>
+    <div class="flow-step step-output">
+      <div class="step-num">OUTPUT</div>
+      <div class="icon">📤</div>
+      <h3>Per-Run Result Files</h3>
+      <p>Written to <code>output/results/&lt;VIN&gt;/&lt;issue_id&gt;/&lt;run_id&gt;/</code></p>
+      <div style="margin-top:8px">
+        <div class="code-pill">ae_signal_errors.csv</div>
+        <div class="code-pill">ae_anomaly_summary.csv</div>
+        <div class="code-pill">ae_ecu_relevance.csv</div>
+        <div class="code-pill">ae_dtc_candidates.csv</div>
+        <div class="code-pill">ae_model_info.json</div>
+      </div>
+      <p style="margin-top:8px;font-size:11px;color:#666">All CSV files include vin, issue_id, run_id as leading columns.</p>
+    </div>
+  </div>
+
+  <!-- output cards -->
+  <div class="output-summary">
+    <div class="out-card">
+      <div class="out-icon">📈</div>
+      <div class="out-name">ae_signal_errors.csv</div>
+      <div class="out-cols">vin · issue_id · run_id<br>time_s · signal · ae_error<br>is_anomaly · score_normalized</div>
+    </div>
+    <div class="out-card">
+      <div class="out-icon">🏆</div>
+      <div class="out-name">ae_anomaly_summary.csv</div>
+      <div class="out-cols">vin · issue_id · run_id<br>signal · anomaly_count<br>ae_error_sum · score_sum</div>
+    </div>
+    <div class="out-card">
+      <div class="out-icon">🖥️</div>
+      <div class="out-name">ae_ecu_relevance.csv</div>
+      <div class="out-cols">vin · issue_id · run_id<br>ecu · anomaly_count<br>ae_error_sum · score_sum</div>
+    </div>
+    <div class="out-card">
+      <div class="out-icon">⚠️</div>
+      <div class="out-name">ae_dtc_candidates.csv</div>
+      <div class="out-cols">vin · issue_id · run_id<br>dtc_code · relative_time_s<br>top_signal · top_ecu · scores</div>
+    </div>
+  </div>
+
+</div><!-- /section 2 -->
+
+<div class="page-footer">
+  RCA Autoencoder Pipeline — Technical Reference &nbsp;|&nbsp; VIN-aware anomaly detection for automotive ECU analysis &nbsp;|&nbsp; pipeline_pilot branch
+</div>
+</body>
+</html>
