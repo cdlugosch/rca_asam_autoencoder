@@ -50,8 +50,8 @@ MAX_ITER            = 500
 AE_THRESHOLD_PCT    = 95.0        # anomaly threshold percentile
 DTC_WINDOW_BEFORE_S = 2.0
 DTC_WINDOW_AFTER_S  = 2.0
-SAVE_MODEL          = None        # e.g. "./output/models/WBA000001/WBA000001_20260505.joblib"
-LOAD_MODEL          = None        # e.g. "./output/models/WBA000001/WBA000001_20260505.joblib"
+SAVE_MODEL          = None        # e.g. "./output/models/WBA000001/WBA000001_20260506.joblib"
+LOAD_MODEL          = None        # e.g. "./output/models/WBA000001/WBA000001_20260506.joblib"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -469,11 +469,18 @@ def load_model_bundle(path: Path) -> dict:
 def main():
     intermediate_dir = Path(INTERMEDIATE_DIR)
     output_dir       = Path(OUTPUT_DIR)
-    ae_dir = output_dir / "autoencoder"
-    ae_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Load data ────────────────────────────────────────────────────────────
     df = load_intermediate(intermediate_dir)
+
+    # Build run → VIN / issue_id lookup from embedded metadata columns
+    run_meta = (
+        df[["run_id", "vin", "issue_id"]]
+        .drop_duplicates("run_id")
+        .set_index("run_id")
+        .to_dict("index")
+    )
 
     sensor_ecu_map = load_sensor_ecu_map(SENSOR_ECU_MAP)
     dtc_df         = load_dtc_log(DTC_LOG)
@@ -537,15 +544,6 @@ def main():
             DTC_WINDOW_BEFORE_S, DTC_WINDOW_AFTER_S,
         )
 
-    # ── Write outputs ─────────────────────────────────────────────────────────
-    ae_long[["run_id", "time_s", "signal", "ae_error",
-             "is_anomaly", "score_normalized"]].to_csv(
-        ae_dir / "ae_signal_errors.csv", index=False)
-    ae_signal_summary.to_csv(ae_dir / "ae_anomaly_summary.csv", index=False)
-    ae_ecu_relevance.to_csv(ae_dir / "ae_ecu_relevance.csv", index=False)
-    if not ae_dtc.empty:
-        ae_dtc.to_csv(ae_dir / "ae_dtc_candidates.csv", index=False)
-
     model_info = {
         "backend":             "sklearn.MLPRegressor",
         "hidden_layer_sizes":  list(ae.hidden_layer_sizes),
@@ -563,9 +561,39 @@ def main():
         "thresholds":          {k: float(v) for k, v in thresholds.items()},
         "loaded_from":         str(LOAD_MODEL) if LOAD_MODEL else None,
     }
-    with open(ae_dir / "ae_model_info.json", "w") as f:
-        json.dump(model_info, f, indent=2)
-    print(f"Autoencoder outputs written to {ae_dir}")
+
+    # ── Write per-run outputs ─────────────────────────────────────────────────
+    # output/results/<VIN>/<issue_id>/<run_id>/
+    results_root = output_dir / "results"
+    for run_id, run_errors in ae_long.groupby("run_id"):
+        meta     = run_meta.get(run_id, {})
+        vin      = meta.get("vin", "unknown")
+        issue_id = meta.get("issue_id", "none")
+
+        run_dir = results_root / vin / issue_id / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        run_errors[["run_id", "time_s", "signal", "ae_error",
+                    "is_anomaly", "score_normalized"]].to_csv(
+            run_dir / "ae_signal_errors.csv", index=False)
+
+        aggregate_ae_signal_summary(run_errors).to_csv(
+            run_dir / "ae_anomaly_summary.csv", index=False)
+
+        aggregate_ae_ecu_relevance(run_errors, sensor_ecu_df).to_csv(
+            run_dir / "ae_ecu_relevance.csv", index=False)
+
+        if not ae_dtc.empty:
+            run_dtc = ae_dtc[ae_dtc["run_id"] == run_id]
+            if not run_dtc.empty:
+                run_dtc.to_csv(run_dir / "ae_dtc_candidates.csv", index=False)
+
+        with open(run_dir / "ae_model_info.json", "w") as f:
+            json.dump(model_info, f, indent=2)
+
+        print(f"  Written {run_id} → results/{vin}/{issue_id}/{run_id}/")
+
+    print(f"Autoencoder outputs written to {results_root}")
     print("Done.")
 
 
