@@ -1,0 +1,62 @@
+{
+  "pipeline" : {
+    "@class" : "Pipeline",
+    "resourceId" : "pip-anosumnormal01-000006",
+    "name" : "WBA000001_none_normal_run_01_ae_anomaly_summary",
+    "description" : "",
+    "kind" : "Pipeline",
+    "type" : "IndexTabularDataFlow",
+    "resourcePath" : "Pipeline/WBA000001_none_normal_run_01_ae_anomaly_summary.json",
+    "config" : {
+      "@class" : "SimplePipeline",
+      "dataflow" : {
+        "@class" : "IndexTabularDataFlow",
+        "id" : "a1000001-0000-0000-0000-000000000006",
+        "name" : "",
+        "activateLineage" : false,
+        "scheduling" : {
+          "expression" : "9999 weeks",
+          "cronType" : "spring"
+        },
+        "source" : {
+          "storageName" : "vehicle",
+          "projectId" : "dp-c3hrcaasammdf-996748",
+          "resourceId" : "vehicle"
+        },
+        "filter" : {
+          "prefix" : "ml_out/results/WBA000001/none/WBA000001_normal_run_01/ae_anomaly_summary.csv",
+          "prependSourcePrefix" : true
+        },
+        "tabular_dataformat" : {
+          "@class" : "CSVDataformat",
+          "attributesMapping" : [],
+          "format" : "Custom Format",
+          "valueSeparator" : ",",
+          "firstLineHeader" : true,
+          "quoteCharacter" : "\"",
+          "escapeCharacter" : "\\",
+          "nullString" : "",
+          "characterSet" : "UTF-8"
+        },
+        "index_target" : {
+          "indexUnit" : "ae_results",
+          "projectId" : "dp-c3hrcaasammdf-996748",
+          "resourceId" : "ae_results",
+          "isSingleClass" : true,
+          "className" : "ae_anomaly_summary",
+          "packageName" : "ml_out",
+          "indexing_settings" : {
+            "replaceNullStringsByEmptyStrings" : false
+          }
+        },
+        "processing" : {
+          "expression" : ""
+        },
+        "pushOnly" : false
+      }
+    }
+  },
+  "version" : {
+    "value" : "1.1"
+  }
+}

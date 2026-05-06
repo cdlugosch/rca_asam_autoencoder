@@ -1,0 +1,183 @@
+{
+  "storage" : {
+    "@class" : "IndexUnit",
+    "resourceId" : "ae_results",
+    "name" : "ae_results",
+    "kind" : "Storage",
+    "type" : "IndexUnit",
+    "resourcePath" : "Storage/ae_results.json",
+    "config" : {
+      "datamodel" : {
+        "classes" : [ {
+          "name" : "template",
+          "parents" : [ "core.Item" ],
+          "pkg" : "package",
+          "attributes" : [ {
+            "name" : "property1",
+            "type" : {
+              "dataType" : "String",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property2",
+            "type" : {
+              "dataType" : "Binary",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property3",
+            "type" : {
+              "dataType" : "Boolean",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property4",
+            "type" : {
+              "dataType" : "Date",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property5",
+            "type" : {
+              "dataType" : "DateTime",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property6",
+            "type" : {
+              "dataType" : "Decimal",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property7",
+            "type" : {
+              "dataType" : "Embedding",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property8",
+            "type" : {
+              "dataType" : "Float",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property9",
+            "type" : {
+              "dataType" : "HierarchicalString",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property10",
+            "type" : {
+              "dataType" : "Integer",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property11",
+            "type" : {
+              "dataType" : "LocalDateTime",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property12",
+            "type" : {
+              "dataType" : "String",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property13",
+            "type" : {
+              "dataType" : "Text",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property14",
+            "type" : {
+              "dataType" : "IntegerTimeSeries",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property15",
+            "type" : {
+              "dataType" : "FloatTimeSeries",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property16",
+            "type" : {
+              "dataType" : "DecimalTimeSeries",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property17",
+            "type" : {
+              "dataType" : "BooleanTimeSeries",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property18",
+            "type" : {
+              "dataType" : "StringTimeSeries",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property19",
+            "type" : {
+              "dataType" : "Reference",
+              "dataStructure" : "Singleton",
+              "referenceType" : "package.template_b"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property20",
+            "type" : {
+              "dataType" : "String",
+              "dataStructure" : "List"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "property21",
+            "type" : {
+              "dataType" : "Integer",
+              "dataStructure" : "List"
+            },
+            "annotation" : { }
+          } ]
+        }, {
+          "name" : "template_b",
+          "parents" : [ "core.Item" ],
+          "pkg" : "package",
+          "attributes" : [ {
+            "name" : "property",
+            "type" : {
+              "dataType" : "String",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          } ]
+        } ]
+      }
+    }
+  },
+  "version" : {
+    "value" : "1.2"
+  }
+}

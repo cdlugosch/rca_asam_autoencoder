@@ -1,0 +1,187 @@
+{
+  "storage" : {
+    "@class" : "IndexUnit",
+    "resourceId" : "ae_results",
+    "name" : "ae_results",
+    "kind" : "Storage",
+    "type" : "IndexUnit",
+    "resourcePath" : "Storage/ae_results.json",
+    "config" : {
+      "datamodel" : {
+        "classes" : [ {
+          "name" : "sensor_ecu_map",
+          "parents" : [ "core.Item" ],
+          "pkg" : "ml_out",
+          "attributes" : [ {
+            "name" : "sensor",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "ecu",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          } ]
+        }, {
+          "name" : "ae_signal_error",
+          "parents" : [ "core.Item" ],
+          "pkg" : "ml_out",
+          "attributes" : [ {
+            "name" : "vin",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "issue_id",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "run_id",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "time_s",
+            "type" : { "dataType" : "Float", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "signal",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "ae_error",
+            "type" : { "dataType" : "Float", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "is_anomaly",
+            "type" : { "dataType" : "Boolean", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "score_normalized",
+            "type" : { "dataType" : "Float", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          } ]
+        }, {
+          "name" : "ae_anomaly_summary",
+          "parents" : [ "core.Item" ],
+          "pkg" : "ml_out",
+          "attributes" : [ {
+            "name" : "vin",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "issue_id",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "run_id",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "signal",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "anomaly_count",
+            "type" : { "dataType" : "Integer", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "ae_error_sum",
+            "type" : { "dataType" : "Float", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "score_normalized_sum",
+            "type" : { "dataType" : "Float", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          } ]
+        }, {
+          "name" : "ae_ecu_relevance",
+          "parents" : [ "core.Item" ],
+          "pkg" : "ml_out",
+          "attributes" : [ {
+            "name" : "vin",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "issue_id",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "run_id",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "ecu",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "anomaly_count",
+            "type" : { "dataType" : "Integer", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "ae_error_sum",
+            "type" : { "dataType" : "Float", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "score_normalized_sum",
+            "type" : { "dataType" : "Float", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          } ]
+        }, {
+          "name" : "ae_dtc_candidate",
+          "parents" : [ "core.Item" ],
+          "pkg" : "ml_out",
+          "attributes" : [ {
+            "name" : "vin",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "issue_id",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "run_id",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "relative_time_s",
+            "type" : { "dataType" : "Float", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "dtc_code",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "dtc_ecu",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "description",
+            "type" : { "dataType" : "Text", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "top_signal",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "top_signal_score",
+            "type" : { "dataType" : "Float", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "top_ecu",
+            "type" : { "dataType" : "String", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "top_ecu_score",
+            "type" : { "dataType" : "Float", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          }, {
+            "name" : "matched_anomaly_count",
+            "type" : { "dataType" : "Integer", "dataStructure" : "Singleton" },
+            "annotation" : { }
+          } ]
+        } ]
+      }
+    }
+  },
+  "version" : {
+    "value" : "1.2"
+  }
+}

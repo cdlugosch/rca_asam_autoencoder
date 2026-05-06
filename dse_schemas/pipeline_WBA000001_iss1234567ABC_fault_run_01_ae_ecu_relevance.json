@@ -1,0 +1,62 @@
+{
+  "pipeline" : {
+    "@class" : "Pipeline",
+    "resourceId" : "pip-ecurelevancefault01-000004",
+    "name" : "WBA000001_iss1234567ABC_fault_run_01_ae_ecu_relevance",
+    "description" : "",
+    "kind" : "Pipeline",
+    "type" : "IndexTabularDataFlow",
+    "resourcePath" : "Pipeline/WBA000001_iss1234567ABC_fault_run_01_ae_ecu_relevance.json",
+    "config" : {
+      "@class" : "SimplePipeline",
+      "dataflow" : {
+        "@class" : "IndexTabularDataFlow",
+        "id" : "a1000001-0000-0000-0000-000000000004",
+        "name" : "",
+        "activateLineage" : false,
+        "scheduling" : {
+          "expression" : "9999 weeks",
+          "cronType" : "spring"
+        },
+        "source" : {
+          "storageName" : "vehicle",
+          "projectId" : "dp-c3hrcaasammdf-996748",
+          "resourceId" : "vehicle"
+        },
+        "filter" : {
+          "prefix" : "ml_out/results/WBA000001/iss1234567ABC/WBA000001_fault_run_01/ae_ecu_relevance.csv",
+          "prependSourcePrefix" : true
+        },
+        "tabular_dataformat" : {
+          "@class" : "CSVDataformat",
+          "attributesMapping" : [],
+          "format" : "Custom Format",
+          "valueSeparator" : ",",
+          "firstLineHeader" : true,
+          "quoteCharacter" : "\"",
+          "escapeCharacter" : "\\",
+          "nullString" : "",
+          "characterSet" : "UTF-8"
+        },
+        "index_target" : {
+          "indexUnit" : "ae_results",
+          "projectId" : "dp-c3hrcaasammdf-996748",
+          "resourceId" : "ae_results",
+          "isSingleClass" : true,
+          "className" : "ae_ecu_relevance",
+          "packageName" : "ml_out",
+          "indexing_settings" : {
+            "replaceNullStringsByEmptyStrings" : false
+          }
+        },
+        "processing" : {
+          "expression" : ""
+        },
+        "pushOnly" : false
+      }
+    }
+  },
+  "version" : {
+    "value" : "1.1"
+  }
+}
