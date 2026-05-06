@@ -1,0 +1,79 @@
+{
+  "storage" : {
+    "@class" : "IndexUnit",
+    "resourceId" : "ae_signal_errors",
+    "name" : "ae_signal_errors",
+    "kind" : "Storage",
+    "type" : "IndexUnit",
+    "resourcePath" : "Storage/ae_signal_errors.json",
+    "config" : {
+      "datamodel" : {
+        "classes" : [ {
+          "name" : "ae_signal_error",
+          "parents" : [ "core.Item" ],
+          "pkg" : "ml_out",
+          "attributes" : [ {
+            "name" : "vin",
+            "type" : {
+              "dataType" : "String",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "issue_id",
+            "type" : {
+              "dataType" : "String",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "run_id",
+            "type" : {
+              "dataType" : "String",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "time_s",
+            "type" : {
+              "dataType" : "Float",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "signal",
+            "type" : {
+              "dataType" : "String",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "ae_error",
+            "type" : {
+              "dataType" : "Float",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "is_anomaly",
+            "type" : {
+              "dataType" : "Boolean",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "score_normalized",
+            "type" : {
+              "dataType" : "Float",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          } ]
+        } ]
+      }
+    }
+  },
+  "version" : {
+    "value" : "1.2"
+  }
+}

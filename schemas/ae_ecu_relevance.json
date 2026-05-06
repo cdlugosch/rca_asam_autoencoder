@@ -1,0 +1,72 @@
+{
+  "storage" : {
+    "@class" : "IndexUnit",
+    "resourceId" : "ae_ecu_relevance",
+    "name" : "ae_ecu_relevance",
+    "kind" : "Storage",
+    "type" : "IndexUnit",
+    "resourcePath" : "Storage/ae_ecu_relevance.json",
+    "config" : {
+      "datamodel" : {
+        "classes" : [ {
+          "name" : "ae_ecu_relevance",
+          "parents" : [ "core.Item" ],
+          "pkg" : "ml_out",
+          "attributes" : [ {
+            "name" : "vin",
+            "type" : {
+              "dataType" : "String",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "issue_id",
+            "type" : {
+              "dataType" : "String",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "run_id",
+            "type" : {
+              "dataType" : "String",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "ecu",
+            "type" : {
+              "dataType" : "String",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "anomaly_count",
+            "type" : {
+              "dataType" : "Integer",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "ae_error_sum",
+            "type" : {
+              "dataType" : "Float",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          }, {
+            "name" : "score_normalized_sum",
+            "type" : {
+              "dataType" : "Float",
+              "dataStructure" : "Singleton"
+            },
+            "annotation" : { }
+          } ]
+        } ]
+      }
+    }
+  },
+  "version" : {
+    "value" : "1.2"
+  }
+}
