@@ -1,0 +1,4 @@
+run_id,vin,issue_id,testrun
+WBA000001_fault_run_01,WBA000001,iss1234567ABC,TR-2026-001
+WBA000001_normal_run_01,WBA000001,none,TR-2026-002
+WBA000001_normal_run_02,WBA000001,none,TR-2026-003
