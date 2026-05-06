@@ -26,6 +26,9 @@ build/
 # Claude Code
 .claude/
 
+# adp runtime state
+.adp_pipeline_state
+
 # OS
 .DS_Store
 Thumbs.db
